@@ -51,6 +51,11 @@ export function createSupabaseAdminClient() {
     auth: {
       autoRefreshToken: false,
       persistSession: false
+    },
+    global: {
+      // Force Next.js to never cache Supabase admin queries
+      fetch: (url: RequestInfo | URL, init?: RequestInit) =>
+        fetch(url, { ...init, cache: "no-store" })
     }
   });
 }
