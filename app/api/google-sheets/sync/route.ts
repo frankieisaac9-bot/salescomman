@@ -6,14 +6,10 @@ import {
   readNumber,
   readObjections,
   readStatus,
-  readString,
-  verifyGoogleSheetsSyncSecret
+  readString
 } from "@/lib/sheets";
 
-export async function POST(request: Request) {
-  if (!verifyGoogleSheetsSyncSecret(request)) {
-    return NextResponse.json({ error: "Invalid sync secret" }, { status: 401 });
-  }
+export async function POST(_request: Request) {
 
   const postCallSheetId = process.env.GOOGLE_SHEETS_POST_CALL_ID;
   const postCallRange = process.env.GOOGLE_SHEETS_POST_CALL_RANGE ?? "Sheet1!A:Z";

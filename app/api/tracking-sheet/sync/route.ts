@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { verifyGoogleSheetsSyncSecret } from "@/lib/sheets";
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_TRACKING_ID;
 
@@ -77,10 +76,7 @@ function parseCsvToRows(csv: string): Record<string, unknown>[] {
   });
 }
 
-export async function POST(request: Request) {
-  if (!verifyGoogleSheetsSyncSecret(request)) {
-    return NextResponse.json({ error: "Invalid sync secret" }, { status: 401 });
-  }
+export async function POST(_request: Request) {
   if (!SHEET_ID) {
     return NextResponse.json({ error: "Missing GOOGLE_SHEETS_TRACKING_ID" }, { status: 500 });
   }
