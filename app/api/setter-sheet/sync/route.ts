@@ -95,10 +95,9 @@ export async function POST(_request: Request) {
         if (rawRevenue) payload.revenue = parseNum(row["revenue"]);
 
         // Skip completely empty rows (placeholder future-date rows in the sheet)
-        const hasData = payload.new_leads + payload.dq + payload.follow_ups +
-          payload.calls_pitched + payload.booked_calls + payload.calls_shown +
-          payload.no_shows + payload.cancelled + payload.reschedules +
-          payload.cash_collected + payload.revenue > 0;
+        const numFields = ["new_leads","dq","follow_ups","calls_pitched","booked_calls",
+          "calls_shown","no_shows","cancelled","reschedules","cash_collected","revenue"];
+        const hasData = numFields.reduce((sum, k) => sum + ((payload[k] as number) || 0), 0) > 0;
         if (!hasData) return null;
 
         return payload;

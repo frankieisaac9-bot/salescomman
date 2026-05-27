@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 
     // Zero out any DB rows for these setters that no longer exist in the sheet
     // (handles deleted rows — sheet is always the source of truth)
-    const setterNames = [...new Set(payloads.map(p => p.setter_name as string))];
+    const setterNames = Array.from(new Set(payloads.map(p => p.setter_name as string)));
     const { data: dbRows } = await supabase
       .from("setter_stats")
       .select("setter_name,date")

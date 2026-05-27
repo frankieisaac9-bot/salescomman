@@ -38,7 +38,7 @@ function statusColor(status: string | null): string {
 
 export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: DailyStat[] }) {
   const repNames = useMemo(() => {
-    const names = [...new Set(stats.map(s => s.rep_name).filter(Boolean))] as string[];
+    const names = Array.from(new Set(stats.map(s => s.rep_name).filter(Boolean))) as string[];
     return ["All", ...names.sort()];
   }, [stats]);
 
