@@ -99,18 +99,33 @@ export async function POST(_request: Request) {
     };
 
     let totalUpserted = 0;
+    const tabResults: Record<string, unknown> = {};
 
     for (const tab of TABS) {
       const repFirstName = tab.split(" ")[0];
       const repId = findRepId(repFirstName);
-      const rows = await fetchTab(SHEET_ID, tab);
+
+      let rows: Record<string, unknown>[] = [];
+      try {
+        rows = await fetchTab(SHEET_ID, tab);
+      } catch (fetchErr) {
+        const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+        console.error(`[Tracking sync] Failed to fetch tab "${tab}":`, msg);
+        tabResults[tab] = { error: msg, raw_rows: 0, upserted: 0 };
+        continue;
+      }
+
+      // Log first row keys so we can debug column names
+      const firstRowKeys = rows[0] ? Object.keys(rows[0]) : [];
+      console.log(`[Tracking sync] Tab "${tab}" — ${rows.length} raw rows, cols:`, firstRowKeys.slice(0, 6));
 
       const payloads = rows
         .map((row) => {
-          const dateStr = parseTrackingDate(String(row["s"] ?? ""));
+          const dateStr = parseTrackingDate(String(row["s"] ?? row[""] ?? ""));
           if (!dateStr) return null;
           const booked = parseCount(row["Booked"]);
-          if (booked === 0 && parseCount(row["Available"]) === 0) return null;
+          const hasCash = parseAmount(row["Cash Collected"]) > 0 || parseAmount(row["Rev Generated"]) > 0;
+          if (booked === 0 && parseCount(row["Available"]) === 0 && !hasCash) return null;
           return {
             rep_id: repId,
             rep_name: repFirstName,
@@ -132,13 +147,20 @@ export async function POST(_request: Request) {
       if (payloads.length) {
         const { error } = await supabase
           .from("daily_stats")
-          .upsert(payloads, { onConflict: "rep_id,date" });
-        if (error) throw new Error(`${tab}: ${error.message}`);
+          .upsert(payloads, { onConflict: "rep_name,date" });
+        if (error) {
+          console.error(`[Tracking sync] Upsert error for tab "${tab}":`, error.message);
+          tabResults[tab] = { error: error.message, raw_rows: rows.length, upserted: 0 };
+          continue;
+        }
         totalUpserted += payloads.length;
+        tabResults[tab] = { raw_rows: rows.length, upserted: payloads.length };
+      } else {
+        tabResults[tab] = { raw_rows: rows.length, upserted: 0, note: "no valid rows after filter" };
       }
     }
 
-    return NextResponse.json({ ok: true, rows_upserted: totalUpserted });
+    return NextResponse.json({ ok: true, rows_upserted: totalUpserted, tabs: tabResults });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[Tracking sheet sync error]", message);
