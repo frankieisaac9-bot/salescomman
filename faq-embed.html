@@ -1,0 +1,146 @@
+<!-- ==========================================================
+     STS FAQ — drop-in embed for Framer
+     Paste this entire block into a Framer "Embed" component (HTML mode).
+     Self-contained: no external CSS/JS, all styles scoped to .sts-faq.
+     To match your Framer page background, set --sts-bg to transparent.
+     ========================================================== -->
+<div class="sts-faq">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    .sts-faq {
+      --sts-bg: #0a0907;
+      --sts-ivory: #f5efe4;
+      --sts-ivory-dim: #cfc8bb;
+      --sts-muted: #8a8377;
+      --sts-gold: oklch(0.78 0.12 75);
+      --sts-line: rgba(245, 239, 228, 0.12);
+
+      background: var(--sts-bg);
+      color: var(--sts-ivory);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      padding: 96px 24px;
+    }
+    .sts-faq * { box-sizing: border-box; }
+
+    .sts-faq__wrap { max-width: 760px; margin: 0 auto; }
+
+    .sts-faq__eyebrow {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: rgb(255, 255, 255);
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .sts-faq__title {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 500;
+      font-size: clamp(32px, 4vw, 48px);
+      line-height: 1.15;
+      text-align: center;
+      margin: 0 auto 56px;
+      color: var(--sts-ivory);
+    }
+
+    .sts-faq__list { list-style: none; margin: 0; padding: 0; }
+
+    .sts-faq__item {
+      border-bottom: 1px solid var(--sts-line);
+      padding: 24px 0;
+      cursor: pointer;
+    }
+    .sts-faq__item:first-child { border-top: 1px solid var(--sts-line); }
+
+    .sts-faq__q {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--sts-ivory);
+      margin: 0;
+      user-select: none;
+    }
+
+    .sts-faq__plus {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 14px;
+      color: var(--sts-gold);
+      transition: transform 0.3s ease;
+      flex-shrink: 0;
+    }
+    .sts-faq__item.is-open .sts-faq__plus { transform: rotate(45deg); }
+
+    .sts-faq__a {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.45s ease, margin-top 0.35s ease;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--sts-ivory-dim);
+      margin: 0;
+    }
+    .sts-faq__item.is-open .sts-faq__a {
+      max-height: 1000px;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .sts-faq { padding: 64px 20px; }
+      .sts-faq__q { font-size: 17px; }
+    }
+  </style>
+
+  <div class="sts-faq__wrap">
+    <div class="sts-faq__eyebrow">Questions, Honestly Answered</div>
+    <h2 class="sts-faq__title">FAQ's</h2>
+
+    <ul class="sts-faq__list">
+
+      <li class="sts-faq__item">
+        <div class="sts-faq__q">Do I need sales experience to apply?<span class="sts-faq__plus">+</span></div>
+        <div class="sts-faq__a">No. The programme is built for people who want to learn the skill properly from the start. What matters is your mindset and commitment, not your CV. Most people who join have never closed a deal in their life.</div>
+      </li>
+
+      <li class="sts-faq__item">
+        <div class="sts-faq__q">Is this one of those "$10k in 90 days" promises?<span class="sts-faq__plus">+</span></div>
+        <div class="sts-faq__a">No. If that's what you're looking for, this isn't for you. STS teaches you how to actually become good at sales, which takes real work, real reps, and real standards. The results come because of the skill, not in spite of the timeline.</div>
+      </li>
+
+      <li class="sts-faq__item">
+        <div class="sts-faq__q">I'm a student / I'm working full time. Can I fit this around my schedule?<span class="sts-faq__plus">+</span></div>
+        <div class="sts-faq__a">Yes. The skills you're learning are applied remotely, and coaching is structured to work around your existing commitments. The question isn't whether you have time, it's whether you're willing to prioritise this over the things that aren't moving your life forward. Remember, someone has been in a worse position than you &amp; done it better.</div>
+      </li>
+
+      <li class="sts-faq__item">
+        <div class="sts-faq__q">How quickly can I expect to start earning?<span class="sts-faq__plus">+</span></div>
+        <div class="sts-faq__a">That depends on how fast you move and how seriously you apply what you learn. Some people land roles within weeks of joining. Others take longer. There are no guarantees, only the framework, the coaching, and what you do with it.</div>
+      </li>
+
+      <li class="sts-faq__item">
+        <div class="sts-faq__q">I've already bought courses that didn't work... Why is this different?<span class="sts-faq__plus">+</span></div>
+        <div class="sts-faq__a">This isn't just "here are some videos, go make it happen", it's a coaching programme with a framework, live call analysis, and direct feedback on your actual performance. You'll know exactly what you're doing wrong and how to fix it. But I'll be real with you, you need to decide that this time will be different. Can you honestly say that you did everything in your power with the things you've tried in the past? If you can answer that honestly &amp; make a change then this can be the time that you actually achieve the success you've wanted</div>
+      </li>
+
+    </ul>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.currentScript.closest('.sts-faq');
+      if (!root) root = document.querySelector('.sts-faq');
+      if (!root) return;
+      root.querySelectorAll('.sts-faq__item').forEach(function (item) {
+        item.addEventListener('click', function () {
+          item.classList.toggle('is-open');
+        });
+      });
+    })();
+  </script>
+</div>

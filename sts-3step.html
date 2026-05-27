@@ -1,0 +1,124 @@
+<!-- ==========================================================
+     STS 3 Step Process — drop-in embed for Framer
+     Paste into a Framer "Embed" component (HTML mode).
+     Self-contained: all styles scoped to .sts-steps.
+     To match your Framer page background, set --sts-bg to transparent.
+     ========================================================== -->
+<div class="sts-steps">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    .sts-steps {
+      --sts-bg: #0a0907;
+      --sts-ivory: #f5efe4;
+      --sts-ivory-dim: #cfc8bb;
+      --sts-gold: #292A6E;
+      --sts-line: rgba(245, 239, 228, 0.12);
+
+      background: var(--sts-bg);
+      color: var(--sts-ivory);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      padding: 80px 40px;
+    }
+    .sts-steps * { box-sizing: border-box; }
+
+    .sts-steps__title {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 700;
+      font-size: clamp(28px, 4vw, 44px);
+      text-align: center;
+      color: var(--sts-ivory);
+      margin: 0 0 64px;
+      letter-spacing: -0.01em;
+    }
+    .sts-steps__title em {
+      font-style: italic;
+      color: var(--sts-gold);
+    }
+
+    .sts-steps__grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 48px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .sts-steps__col {
+      text-align: center;
+    }
+
+    .sts-steps__phase {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--sts-gold);
+      margin: 0 0 10px;
+    }
+
+    .sts-steps__heading {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 700;
+      font-size: clamp(22px, 2.5vw, 32px);
+      line-height: 1.15;
+      color: var(--sts-ivory);
+      margin: 0 0 24px;
+    }
+
+    .sts-steps__divider {
+      width: 40px;
+      height: 1px;
+      background: var(--sts-gold);
+      margin: 0 auto 24px;
+      opacity: 0.6;
+    }
+
+    .sts-steps__body {
+      font-size: 14px;
+      line-height: 1.75;
+      color: var(--sts-ivory-dim);
+      margin: 0;
+    }
+    .sts-steps__body em {
+      font-style: italic;
+      color: var(--sts-ivory);
+    }
+
+    @media (max-width: 768px) {
+      .sts-steps__grid {
+        grid-template-columns: 1fr;
+        gap: 48px;
+      }
+      .sts-steps { padding: 64px 24px; }
+    }
+  </style>
+
+  <h2 class="sts-steps__title">The <em>STS</em> 3 Step Process</h2>
+
+  <div class="sts-steps__grid">
+
+    <div class="sts-steps__col">
+      <p class="sts-steps__phase">Phase 1:</p>
+      <h3 class="sts-steps__heading">Building The Iron Mind</h3>
+      <div class="sts-steps__divider"></div>
+      <p class="sts-steps__body">Strength Starts From Within. In This Phase, You'll Sharpen Yourself Mentally, Physically, Emotionally, And Spiritually. When You Remove Your Own Internal Blocks, You Stop Showing Up As A Rep And Start Showing Up As An Authority.</p>
+    </div>
+
+    <div class="sts-steps__col">
+      <p class="sts-steps__phase">Phase 2:</p>
+      <h3 class="sts-steps__heading">Dismantling Limiting Beliefs</h3>
+      <div class="sts-steps__divider"></div>
+      <p class="sts-steps__body">Learn How To Break Through A Prospect's Deepest Internal Beliefs Using My Proven <em>"Devil Vs. Angel" Methodology.</em> This Process Rewires How You Handle Conversations So Objections Disappear Before They Ever Come Up.</p>
+    </div>
+
+    <div class="sts-steps__col">
+      <p class="sts-steps__phase">Phase 3:</p>
+      <h3 class="sts-steps__heading">Congruency &amp; Leadership</h3>
+      <div class="sts-steps__divider"></div>
+      <p class="sts-steps__body">Top Closers Don't Just "Say The Right Words" — They Embody Conviction. In This Final Phase, You'll Master Congruence And Leadership, So Your Confidence Naturally Transfers To The Prospect, Making Buying The Obvious Choice.</p>
+    </div>
+
+  </div>
+</div>

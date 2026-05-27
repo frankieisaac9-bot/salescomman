@@ -1,0 +1,22 @@
+# clip_extractor.py dependencies
+# Install with: pip install -r requirements.txt
+#
+# System requirement (not pip-installable):
+#   ffmpeg >= 4.0  →  brew install ffmpeg  /  sudo apt install ffmpeg
+
+# Core transcription
+openai-whisper>=20231117
+
+# Whisper's own required deps (usually pulled in automatically)
+torch>=2.0.0
+numpy>=1.24.0
+
+# Optional: Claude API for LLM-powered scoring and caption generation
+# Only needed if you use the --use-claude flag
+anthropic>=0.25.0
+
+# Optional: Google Drive upload
+# Only needed if you use the --upload-drive flag
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.1.0
