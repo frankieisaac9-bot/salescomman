@@ -136,3 +136,13 @@ export async function getCloserCalls() {
     .order("date", { ascending: true });
   return { calls: (data ?? []) as CloserCall[], error };
 }
+
+export async function getTrackingStats() {
+  if (!isSupabaseConfigured()) return { stats: [], error: null };
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("daily_stats")
+    .select("*")
+    .order("date", { ascending: true });
+  return { stats: (data ?? []) as DailyStat[], error };
+}

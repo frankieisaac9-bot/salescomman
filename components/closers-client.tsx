@@ -5,10 +5,12 @@ import { DollarSign, Percent, PhoneCall, Target, TrendingUp, ExternalLink } from
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi-card";
-import type { CloserCall } from "@/lib/types";
+import type { CloserCall, DailyStat } from "@/lib/types";
 
 const RANGES = ["MTD", "30d", "All"] as const;
 type RangeFilter = (typeof RANGES)[number];
+
+const REP_COLORS: Record<string, string> = { Dawid: "#3b82f6", James: "#ef4444" };
 
 function fmt(n: number) { return n.toLocaleString("en-US", { maximumFractionDigits: 0 }); }
 function currency(n: number) { return "$" + fmt(n); }
@@ -17,21 +19,11 @@ function shortDate(iso: string) {
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
-
 function getRangeSince(range: RangeFilter): string | null {
   const now = new Date();
   if (range === "MTD") return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
   if (range === "30d") { const d = new Date(now); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); }
   return null;
-}
-
-function isShowed(c: CloserCall) {
-  const s = (c.lead_status ?? "").toLowerCase();
-  return !s.includes("no show") && !s.includes("rescheduling") && !s.includes("reschedul");
-}
-function isClosed(c: CloserCall) {
-  const s = (c.lead_status ?? "").toLowerCase();
-  return s.includes("closed") || s.includes("deposit");
 }
 
 function statusColor(status: string | null): string {
@@ -44,91 +36,100 @@ function statusColor(status: string | null): string {
   return "text-slate-400 bg-slate-400/10";
 }
 
-export function ClosersClient({ calls }: { calls: CloserCall[] }) {
+export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: DailyStat[] }) {
   const repNames = useMemo(() => {
-    const names = [...new Set(calls.map(c => c.rep_name))].sort();
-    return ["All", ...names];
-  }, [calls]);
+    const names = [...new Set(stats.map(s => s.rep_name).filter(Boolean))] as string[];
+    return ["All", ...names.sort()];
+  }, [stats]);
 
   const [rep, setRep] = useState<string>("All");
   const [range, setRange] = useState<RangeFilter>("MTD");
   const [search, setSearch] = useState("");
 
-  const filtered = useMemo(() => {
+  // Filter tracking stats
+  const filteredStats = useMemo(() => {
     const since = getRangeSince(range);
-    return calls.filter(c => {
-      if (rep !== "All" && c.rep_name !== rep) return false;
-      if (since && c.date < since) return false;
+    return stats.filter(s => {
+      if (rep !== "All" && s.rep_name !== rep) return false;
+      if (since && s.date < since) return false;
       return true;
     });
-  }, [calls, rep, range]);
+  }, [stats, rep, range]);
 
-  const total = filtered.length;
-  const showed = filtered.filter(isShowed).length;
-  const closed = filtered.filter(isClosed).length;
-  const showRate = total > 0 ? (showed / total) * 100 : 0;
-  const closeRate = showed > 0 ? (closed / showed) * 100 : 0;
-  const cashTotal = filtered.reduce((s, c) => s + Number(c.cash_collected), 0);
-  const revenueTotal = filtered.reduce((s, c) => s + Number(c.revenue), 0);
+  // Aggregate KPIs from tracking sheet (source of truth)
+  const totals = useMemo(() => filteredStats.reduce((acc, s) => ({
+    available: acc.available + s.available,
+    booked: acc.booked + s.booked,
+    showed: acc.showed + s.showed,
+    canceled: acc.canceled + s.canceled,
+    no_show: acc.no_show + s.no_show,
+    offer: acc.offer + s.offer,
+    deposit: acc.deposit + s.deposit,
+    closed: acc.closed + s.closed,
+    cash: acc.cash + Number(s.cash_collected),
+    revenue: acc.revenue + Number(s.rev_generated),
+  }), { available: 0, booked: 0, showed: 0, canceled: 0, no_show: 0, offer: 0, deposit: 0, closed: 0, cash: 0, revenue: 0 }), [filteredStats]);
+
+  const showRate = totals.booked > 0 ? (totals.showed / totals.booked) * 100 : 0;
+  const closeRate = totals.showed > 0 ? (totals.closed / totals.showed) * 100 : 0;
+  const offerRate = totals.showed > 0 ? (totals.offer / totals.showed) * 100 : 0;
 
   const rangeLabel = range === "MTD"
     ? new Date().toLocaleString("default", { month: "long" }) + " to date"
     : range === "30d" ? "Last 30 days" : "All time";
 
-  // Chart data — calls + cash by date
+  // Chart — daily data from tracking sheet
   const chartData = useMemo(() => {
-    const byDate = new Map<string, { calls: number; closed: number; cash: number; [key: string]: number }>();
-    filtered.forEach(c => {
-      const e = byDate.get(c.date) ?? { calls: 0, closed: 0, cash: 0 };
-      e.calls++;
-      if (isClosed(c)) e.closed++;
-      e.cash += Number(c.cash_collected);
-      // per-rep breakdown
-      const key = c.rep_name;
-      e[key] = (e[key] ?? 0) + 1;
-      byDate.set(c.date, e);
+    const byDate = new Map<string, Record<string, number>>();
+    filteredStats.forEach(s => {
+      const e = byDate.get(s.date) ?? { booked: 0, showed: 0, closed: 0, cash: 0 };
+      e.booked += s.booked;
+      e.showed += s.showed;
+      e.closed += s.closed;
+      e.cash += Number(s.cash_collected);
+      if (s.rep_name) e[s.rep_name] = (e[s.rep_name] ?? 0) + s.booked;
+      byDate.set(s.date, e);
     });
     return Array.from(byDate.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, v]) => ({ date: shortDate(date), ...v }));
-  }, [filtered]);
+  }, [filteredStats]);
 
-  // Rep comparison
+  // Rep comparison from tracking sheet
   const repRows = useMemo(() => {
     const since = getRangeSince(range);
     return repNames.filter(r => r !== "All").map(name => {
-      const rows = calls.filter(c => c.rep_name === name && (!since || c.date >= since));
-      const t = rows.length;
-      const sh = rows.filter(isShowed).length;
-      const cl = rows.filter(isClosed).length;
+      const rows = stats.filter(s => s.rep_name === name && (!since || s.date >= since));
+      const t = rows.reduce((a, s) => ({
+        booked: a.booked + s.booked, showed: a.showed + s.showed,
+        closed: a.closed + s.closed, offer: a.offer + s.offer,
+        cash: a.cash + Number(s.cash_collected), revenue: a.revenue + Number(s.rev_generated),
+        no_show: a.no_show + s.no_show, canceled: a.canceled + s.canceled,
+      }), { booked: 0, showed: 0, closed: 0, offer: 0, cash: 0, revenue: 0, no_show: 0, canceled: 0 });
       return {
         name,
-        total: t,
-        showed: sh,
-        closed: cl,
-        showRate: t > 0 ? (sh / t) * 100 : 0,
-        closeRate: sh > 0 ? (cl / sh) * 100 : 0,
-        cash: rows.reduce((s, c) => s + Number(c.cash_collected), 0),
-        revenue: rows.reduce((s, c) => s + Number(c.revenue), 0),
+        ...t,
+        showRate: t.booked > 0 ? (t.showed / t.booked) * 100 : 0,
+        closeRate: t.showed > 0 ? (t.closed / t.showed) * 100 : 0,
       };
     });
-  }, [calls, repNames, range]);
+  }, [stats, repNames, range]);
 
-  // Call log with search
+  // Call log from post-call form (detail only)
   const logRows = useMemo(() => {
+    const since = getRangeSince(range);
     const q = search.toLowerCase();
-    return filtered
-      .filter(c => !q || [c.rep_name, c.lead_email, c.setter, c.lead_status, c.problem]
-        .some(f => (f ?? "").toLowerCase().includes(q)))
+    return calls
+      .filter(c => {
+        if (rep !== "All" && c.rep_name !== rep) return false;
+        if (since && c.date < since) return false;
+        if (q && ![c.rep_name, c.lead_email, c.setter, c.lead_status, c.problem]
+          .some(f => (f ?? "").toLowerCase().includes(q))) return false;
+        return true;
+      })
       .slice()
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [filtered, search]);
-
-  const REP_COLORS: Record<string, string> = {
-    Dawid: "#3b82f6",
-    James: "#ef4444",
-    Ben: "#f59e0b",
-  };
+  }, [calls, rep, range, search]);
 
   return (
     <div className="space-y-5">
@@ -150,27 +151,28 @@ export function ClosersClient({ calls }: { calls: CloserCall[] }) {
             </button>
           ))}
         </div>
-        <span className="text-xs text-muted-foreground">{rangeLabel}</span>
+        <span className="text-xs text-muted-foreground">{rangeLabel} · stats from tracking sheet</span>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards — from tracking sheet */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Calls Logged" value={fmt(total)} icon={PhoneCall} tone="blue" detail={`${fmt(showed)} showed up`} />
-        <KpiCard label="Show Rate" value={pct(showRate)} icon={Target} tone="gold" detail={`${fmt(showed)} of ${fmt(total)}`} />
-        <KpiCard label="Close Rate" value={pct(closeRate)} icon={Percent} tone="green" detail={`${fmt(closed)} closed`} />
-        <KpiCard label="Cash Collected" value={currency(cashTotal)} icon={DollarSign} tone="gold" detail={rangeLabel} />
+        <KpiCard label="Booked" value={fmt(totals.booked)} icon={PhoneCall} tone="blue" detail={`${fmt(totals.available)} slots available`} />
+        <KpiCard label="Show Rate" value={pct(showRate)} icon={Target} tone="gold" detail={`${fmt(totals.showed)} showed of ${fmt(totals.booked)}`} />
+        <KpiCard label="Close Rate" value={pct(closeRate)} icon={Percent} tone="green" detail={`${fmt(totals.closed)} closed of ${fmt(totals.showed)} shown`} />
+        <KpiCard label="Cash Collected" value={currency(totals.cash)} icon={DollarSign} tone="gold" detail={rangeLabel} />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <KpiCard label="Revenue Generated" value={currency(revenueTotal)} icon={TrendingUp} tone="blue" detail={rangeLabel} />
-        <KpiCard label="Offers Made" value={fmt(filtered.filter(c => c.offer_made).length)} icon={Target} tone="blue"
-          detail={`${pct(total > 0 ? (filtered.filter(c => c.offer_made).length / total) * 100 : 0)} of calls`} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Revenue Generated" value={currency(totals.revenue)} icon={TrendingUp} tone="blue" detail={rangeLabel} />
+        <KpiCard label="Offers Made" value={fmt(totals.offer)} icon={Target} tone="blue" detail={`${pct(offerRate)} of shows`} />
+        <KpiCard label="No Shows" value={fmt(totals.no_show)} icon={PhoneCall} tone="blue" detail={`${fmt(totals.canceled)} cancelled`} />
+        <KpiCard label="Closed + Deposits" value={fmt(totals.closed + totals.deposit)} icon={DollarSign} tone="green" detail={`${fmt(totals.deposit)} deposits`} />
       </div>
 
       {/* Charts */}
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>{rep === "All" ? "Calls by Rep" : `${rep} — Calls vs Closed`}</CardTitle>
+            <CardTitle>{rep === "All" ? "Booked Calls by Rep" : `${rep} — Booked vs Showed vs Closed`}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
@@ -186,13 +188,14 @@ export function ClosersClient({ calls }: { calls: CloserCall[] }) {
                   ))}
                 </BarChart>
               ) : (
-                <BarChart data={chartData} barSize={12}>
+                <BarChart data={chartData} barSize={10}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} />
                   <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
                   <Tooltip contentStyle={{ background: "#0f1117", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} labelStyle={{ color: "#e2e8f0" }} itemStyle={{ color: "#94a3b8" }} />
                   <Legend wrapperStyle={{ fontSize: 12, color: "#94a3b8" }} />
-                  <Bar dataKey="calls" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Calls" />
+                  <Bar dataKey="booked" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Booked" />
+                  <Bar dataKey="showed" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Showed" />
                   <Bar dataKey="closed" fill="#10b981" radius={[3, 3, 0, 0]} name="Closed" />
                 </BarChart>
               )}
@@ -232,26 +235,30 @@ export function ClosersClient({ calls }: { calls: CloserCall[] }) {
                 <thead>
                   <tr className="border-b border-white/10 text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Rep</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Calls</th>
+                    <th className="pb-2 pr-4 font-medium text-right">Booked</th>
                     <th className="pb-2 pr-4 font-medium text-right">Showed</th>
                     <th className="pb-2 pr-4 font-medium text-right">Show%</th>
                     <th className="pb-2 pr-4 font-medium text-right">Closed</th>
                     <th className="pb-2 pr-4 font-medium text-right">Close%</th>
                     <th className="pb-2 pr-4 font-medium text-right">Offers</th>
-                    <th className="pb-2 font-medium text-right">Cash</th>
+                    <th className="pb-2 pr-4 font-medium text-right">No Show</th>
+                    <th className="pb-2 pr-4 font-medium text-right">Cash</th>
+                    <th className="pb-2 font-medium text-right">Revenue</th>
                   </tr>
                 </thead>
                 <tbody>
                   {repRows.map(r => (
                     <tr key={r.name} className="border-b border-white/5 hover:bg-white/[0.02]">
-                      <td className="py-3 pr-4 font-semibold" style={{ color: REP_COLORS[r.name] ?? undefined }}>{r.name}</td>
-                      <td className="py-3 pr-4 text-right">{fmt(r.total)}</td>
+                      <td className="py-3 pr-4 font-semibold" style={{ color: REP_COLORS[r.name] }}>{r.name}</td>
+                      <td className="py-3 pr-4 text-right">{fmt(r.booked)}</td>
                       <td className="py-3 pr-4 text-right">{fmt(r.showed)}</td>
                       <td className="py-3 pr-4 text-right text-blue-300">{pct(r.showRate)}</td>
                       <td className="py-3 pr-4 text-right font-semibold text-emerald-300">{fmt(r.closed)}</td>
                       <td className="py-3 pr-4 text-right text-emerald-300">{pct(r.closeRate)}</td>
-                      <td className="py-3 pr-4 text-right">{fmt(calls.filter(c => c.rep_name === r.name && c.offer_made && (!getRangeSince(range) || c.date >= (getRangeSince(range) ?? ""))).length)}</td>
-                      <td className="py-3 text-right font-semibold text-amber-300">{currency(r.cash)}</td>
+                      <td className="py-3 pr-4 text-right">{fmt(r.offer)}</td>
+                      <td className="py-3 pr-4 text-right text-red-300">{fmt(r.no_show)}</td>
+                      <td className="py-3 pr-4 text-right text-amber-300">{currency(r.cash)}</td>
+                      <td className="py-3 text-right text-emerald-300">{currency(r.revenue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -261,11 +268,14 @@ export function ClosersClient({ calls }: { calls: CloserCall[] }) {
         </Card>
       )}
 
-      {/* Call Log */}
+      {/* Call Log — from post-call forms */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle>Call Log ({logRows.length})</CardTitle>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <CardTitle>Call Log ({logRows.length})</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">From post-call forms</p>
+            </div>
             <input
               placeholder="Search rep, email, status…"
               value={search}
@@ -311,22 +321,12 @@ export function ClosersClient({ calls }: { calls: CloserCall[] }) {
                         {c.offer_made ? "Yes" : "No"}
                       </span>
                     </td>
-                    <td className="py-2.5 pr-3 text-slate-400 max-w-[160px]">
-                      <span className="line-clamp-2">{c.problem ?? "—"}</span>
-                    </td>
-                    <td className="py-2.5 pr-3 text-slate-400 max-w-[160px]">
-                      <span className="line-clamp-2">{c.goal ?? "—"}</span>
-                    </td>
-                    <td className="py-2.5 pr-3 text-slate-400 max-w-[160px]">
-                      <span className="line-clamp-2">{c.obstacles ?? "—"}</span>
-                    </td>
+                    <td className="py-2.5 pr-3 text-slate-400 max-w-[160px]"><span className="line-clamp-2">{c.problem ?? "—"}</span></td>
+                    <td className="py-2.5 pr-3 text-slate-400 max-w-[160px]"><span className="line-clamp-2">{c.goal ?? "—"}</span></td>
+                    <td className="py-2.5 pr-3 text-slate-400 max-w-[160px]"><span className="line-clamp-2">{c.obstacles ?? "—"}</span></td>
                     <td className="py-2.5 pr-3 text-slate-400 whitespace-nowrap">{c.prospect_job ?? "—"}</td>
-                    <td className="py-2.5 pr-3 text-right font-medium text-amber-300">
-                      {c.cash_collected > 0 ? currency(Number(c.cash_collected)) : "—"}
-                    </td>
-                    <td className="py-2.5 pr-3 text-right font-medium text-emerald-300">
-                      {c.revenue > 0 ? currency(Number(c.revenue)) : "—"}
-                    </td>
+                    <td className="py-2.5 pr-3 text-right font-medium text-amber-300">{c.cash_collected > 0 ? currency(Number(c.cash_collected)) : "—"}</td>
+                    <td className="py-2.5 pr-3 text-right font-medium text-emerald-300">{c.revenue > 0 ? currency(Number(c.revenue)) : "—"}</td>
                     <td className="py-2.5">
                       {c.call_recording_url && c.call_recording_url !== "NA" ? (
                         <a href={c.call_recording_url} target="_blank" rel="noopener noreferrer"
