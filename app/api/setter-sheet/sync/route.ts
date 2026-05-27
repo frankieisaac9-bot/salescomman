@@ -74,7 +74,7 @@ export async function POST(_request: Request) {
         const setterName = String(row["setter name"] ?? "").trim();
         if (!setterName) return null;
 
-        const payload = {
+        const payload: Record<string, unknown> = {
           setter_name: setterName,
           date: dateStr,
           new_leads: parseNum(row["new leads"]),
@@ -86,9 +86,13 @@ export async function POST(_request: Request) {
           no_shows: parseNum(row["no shows"]),
           cancelled: parseNum(row["cancelled"]),
           reschedules: parseNum(row["reschedules"]),
-          cash_collected: parseNum(row["cash collected"]),
-          revenue: parseNum(row["revenue"])
         };
+        // Only set cash fields if the sheet cell is non-empty — prevents overwriting
+        // real values with 0 when Google serves a cached/stale CSV
+        const rawCash = String(row["cash collected"] ?? "").trim();
+        const rawRevenue = String(row["revenue"] ?? "").trim();
+        if (rawCash) payload.cash_collected = parseNum(row["cash collected"]);
+        if (rawRevenue) payload.revenue = parseNum(row["revenue"]);
 
         // Skip completely empty rows (placeholder future-date rows in the sheet)
         const hasData = payload.new_leads + payload.dq + payload.follow_ups +

@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         const setterName = String(row[idx("setter name")] ?? "").trim();
         if (!setterName) return null;
 
-        const payload = {
+        const payload: Record<string, unknown> = {
           setter_name: setterName,
           date: dateStr,
           new_leads: parseNum(row[idx("new leads")]),
@@ -57,15 +57,21 @@ export async function POST(request: Request) {
           no_shows: parseNum(row[idx("no shows")]),
           cancelled: parseNum(row[idx("cancelled")]),
           reschedules: parseNum(row[idx("reschedules")]),
-          cash_collected: parseNum(row[idx("cash collected")]),
-          revenue: parseNum(row[idx("revenue")])
         };
+        // Only set cash fields if the cell is non-empty
+        const rawCash = String(row[idx("cash collected")] ?? "").trim();
+        const rawRevenue = String(row[idx("revenue")] ?? "").trim();
+        if (rawCash) payload.cash_collected = parseNum(row[idx("cash collected")]);
+        if (rawRevenue) payload.revenue = parseNum(row[idx("revenue")]);
 
-        const hasData =
-          payload.new_leads + payload.dq + payload.follow_ups +
-          payload.calls_pitched + payload.booked_calls + payload.calls_shown +
-          payload.no_shows + payload.cancelled + payload.reschedules +
-          payload.cash_collected + payload.revenue > 0;
+        const numericSum = (payload.new_leads as number) + (payload.dq as number) +
+          (payload.follow_ups as number) + (payload.calls_pitched as number) +
+          (payload.booked_calls as number) + (payload.calls_shown as number) +
+          (payload.no_shows as number) + (payload.cancelled as number) +
+          (payload.reschedules as number) +
+          (rawCash ? parseNum(row[idx("cash collected")]) : 0) +
+          (rawRevenue ? parseNum(row[idx("revenue")]) : 0);
+        const hasData = numericSum > 0;
 
         if (!hasData) return null;
         return payload;
