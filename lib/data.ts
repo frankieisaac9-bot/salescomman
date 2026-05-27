@@ -132,6 +132,7 @@ export async function getCloserCalls() {
   const { data, error } = await supabase
     .from("closer_calls")
     .select("*")
+    .not("rep_name", "ilike", "ben")
     .order("date", { ascending: true });
   return { calls: (data ?? []) as CloserCall[], error };
 }
