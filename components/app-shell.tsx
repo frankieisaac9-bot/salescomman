@@ -9,6 +9,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leaderboard", label: "Leaderboard", icon: Medal },
   { href: "/setters", label: "Setters", icon: Users },
+  { href: "/closers", label: "Closers", icon: PhoneCall },
   { href: "/leads", label: "Leads", icon: ShieldAlert },
   { href: "/trophy-room", label: "Trophy Room", icon: Trophy },
   { href: "/objections", label: "Objections", icon: BarChart3 },

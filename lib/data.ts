@@ -1,6 +1,6 @@
 import { subDays } from "date-fns";
 import { createSupabaseAdminClient, createSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase/server";
-import type { Call, DailyStat, Lead, Objection, Rep, SetterStat, Trophy } from "@/lib/types";
+import type { Call, CloserCall, DailyStat, Lead, Objection, Rep, SetterStat, Trophy } from "@/lib/types";
 
 export async function getDashboardData(days = 30, since?: string) {
   if (!isSupabaseConfigured()) return { calls: [], reps: [], objections: [], error: null };
@@ -124,4 +124,14 @@ export async function getSetterStats(since?: string) {
   const query = since ? baseQuery.gte("date", since) : baseQuery;
   const { data, error } = await query;
   return { stats: (data ?? []) as SetterStat[], error };
+}
+
+export async function getCloserCalls() {
+  if (!isSupabaseConfigured()) return { calls: [], error: null };
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("closer_calls")
+    .select("*")
+    .order("date", { ascending: true });
+  return { calls: (data ?? []) as CloserCall[], error };
 }

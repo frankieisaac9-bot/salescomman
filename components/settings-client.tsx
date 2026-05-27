@@ -212,6 +212,9 @@ export function SettingsClient() {
             <Button variant="outline" onClick={() => runSync("/api/setter-sheet/sync", "Setter sheet sync")} disabled={loading}>
               <RefreshCw className="h-4 w-4" /> Sync Setter Sheet
             </Button>
+            <Button variant="outline" onClick={() => runSync("/api/closer-calls/sync", "Closer calls sync")} disabled={loading}>
+              <RefreshCw className="h-4 w-4" /> Sync Closer Calls
+            </Button>
           </div>
         </CardContent>
       </Card>

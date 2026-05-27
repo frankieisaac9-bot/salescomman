@@ -104,6 +104,26 @@ export type SetterStat = {
   created_at: string;
 };
 
+export type CloserCall = {
+  id: string;
+  form_timestamp: string;
+  rep_name: string;
+  date: string;
+  lead_email: string | null;
+  setter: string | null;
+  problem: string | null;
+  goal: string | null;
+  obstacles: string | null;
+  prospect_job: string | null;
+  notes: string | null;
+  offer_made: boolean;
+  lead_status: string | null;
+  call_recording_url: string | null;
+  cash_collected: number;
+  revenue: number;
+  created_at: string;
+};
+
 export type RepMetrics = {
   rep: Rep | null;
   callsBooked: number;
