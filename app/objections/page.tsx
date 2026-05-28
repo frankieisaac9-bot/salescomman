@@ -57,10 +57,13 @@ export default async function ObjectionsPage({
 
   const { objections: allObjections, reps } = await getObjectionsData();
 
-  // Filter by selected month
+  // Filter by call date (not sync date)
   const objections = selectedMonth === "all"
     ? allObjections
-    : allObjections.filter((o) => o.created_at.startsWith(selectedMonth));
+    : allObjections.filter((o) => {
+        const date = o.calls?.call_date ?? o.created_at;
+        return date.startsWith(selectedMonth);
+      });
 
   const totalObjections = objections.length;
 
