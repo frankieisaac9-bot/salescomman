@@ -15,6 +15,7 @@ export default async function DashboardPage() {
   const now = new Date();
   const mtdSince = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
   const monthName = now.toLocaleString("default", { month: "long" });
+  const mtdLabel = `${monthName} to date`;
 
   const [{ stats: mtdStats }, { stats: allStats, reps }, { calls, objections }] = await Promise.all([
     getDailyStats(mtdSince),
@@ -33,11 +34,11 @@ export default async function DashboardPage() {
         description="Live Close.com synced command center for booked calls, closes, cash collection, objections, and rep performance."
       />
       <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label="Calls Booked" value={String(metrics.callsBooked)} icon={PhoneCall} detail={`${monthName} to date`} />
+        <KpiCard label="Calls Booked" value={String(metrics.callsBooked)} icon={PhoneCall} detail={mtdLabel} />
         <KpiCard label="Show Rate" value={percent(metrics.showRate)} icon={Percent} tone="green" detail={`${metrics.showed} showed`} />
         <KpiCard label="Close Rate" value={percent(metrics.closeRate)} icon={Target} tone="gold" detail={`${metrics.callsClosed} closed`} />
-        <KpiCard label="Cash Collected" value={currency(metrics.cashCollected)} icon={DollarSign} tone="gold" detail={`${monthName} to date`} />
-        <KpiCard label="Revenue" value={currency(metrics.revenueGenerated)} icon={TrendingUp} tone="blue" detail={`${monthName} to date`} />
+        <KpiCard label="Cash Collected" value={currency(metrics.cashCollected)} icon={DollarSign} tone="gold" detail={mtdLabel} />
+        <KpiCard label="Revenue" value={currency(metrics.revenueGenerated)} icon={TrendingUp} tone="blue" detail={mtdLabel} />
       </div>
       <DashboardCharts dailyStats={allStats} reps={reps} objections={objections} />
       <Card className="mt-5">

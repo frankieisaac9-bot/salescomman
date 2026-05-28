@@ -16,7 +16,8 @@ const MONTHS = [
   { value: "2026-11", label: "Nov" }, { value: "2026-12", label: "Dec" },
   { value: "all", label: "All" },
 ];
-const CURRENT_MONTH = "2026-05";
+const now = new Date();
+const CURRENT_MONTH = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
 const REP_COLORS: Record<string, string> = { Dawid: "#3b82f6", James: "#ef4444" };
 

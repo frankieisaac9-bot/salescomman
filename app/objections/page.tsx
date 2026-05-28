@@ -45,7 +45,8 @@ const MONTHS = [
   { value: "all", label: "All" },
 ];
 
-const CURRENT_MONTH = "2026-05";
+const now = new Date();
+const CURRENT_MONTH = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
 export default async function ObjectionsPage({
   searchParams,
