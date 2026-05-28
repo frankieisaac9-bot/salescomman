@@ -29,8 +29,38 @@ const RANK_BADGE_COLORS = [
   "bg-orange-400/20 text-orange-300",
 ];
 
-export default async function ObjectionsPage() {
-  const { objections, reps } = await getObjectionsData();
+const MONTHS = [
+  { value: "2026-01", label: "Jan" },
+  { value: "2026-02", label: "Feb" },
+  { value: "2026-03", label: "Mar" },
+  { value: "2026-04", label: "Apr" },
+  { value: "2026-05", label: "May" },
+  { value: "2026-06", label: "Jun" },
+  { value: "2026-07", label: "Jul" },
+  { value: "2026-08", label: "Aug" },
+  { value: "2026-09", label: "Sep" },
+  { value: "2026-10", label: "Oct" },
+  { value: "2026-11", label: "Nov" },
+  { value: "2026-12", label: "Dec" },
+  { value: "all", label: "All" },
+];
+
+const CURRENT_MONTH = "2026-05";
+
+export default async function ObjectionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const { month: monthParam } = await searchParams;
+  const selectedMonth = monthParam ?? CURRENT_MONTH;
+
+  const { objections: allObjections, reps } = await getObjectionsData();
+
+  // Filter by selected month
+  const objections = selectedMonth === "all"
+    ? allObjections
+    : allObjections.filter((o) => o.created_at.startsWith(selectedMonth));
 
   const totalObjections = objections.length;
 
@@ -70,6 +100,26 @@ export default async function ObjectionsPage() {
         title="Objection Intelligence"
         description="Frequency, overcome rates, and revenue impact for every objection logged on calls."
       />
+
+      {/* Month filter */}
+      <div className="mb-5 flex flex-wrap gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1 w-fit">
+        {MONTHS.map((m) => {
+          const active = selectedMonth === m.value;
+          const future = m.value !== "all" && m.value > CURRENT_MONTH;
+          return (
+            <a
+              key={m.value}
+              href={`?month=${m.value}`}
+              className={[
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                active ? "bg-blue-500 text-white" : future ? "text-slate-600 cursor-default pointer-events-none" : "text-slate-300 hover:text-white hover:bg-white/10",
+              ].join(" ")}
+            >
+              {m.label}
+            </a>
+          );
+        })}
+      </div>
 
       {/* Top 3 podium */}
       {top3.length > 0 && (
