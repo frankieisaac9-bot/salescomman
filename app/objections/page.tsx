@@ -1,5 +1,3 @@
-"use server";
-
 import { ObjectionTrendChart } from "@/components/objection-trend-chart";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
