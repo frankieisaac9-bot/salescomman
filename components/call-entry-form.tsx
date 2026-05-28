@@ -14,7 +14,14 @@ import type { ObjectionType, Rep } from "@/lib/types";
 
 const statuses = ["booked", "showed", "no_show", "closed", "lost"];
 const products = ["Setter School", "Closer Accelerator", "Sales Team Buildout", "Enterprise Coaching"];
-const objectionTypes: ObjectionType[] = ["partner", "think_about_it", "fear", "money", "other"];
+const objectionTypes: ObjectionType[] = ["money_logistics", "partner", "fear", "think_about_it", "na"];
+const objectionLabels: Record<ObjectionType, string> = {
+  money_logistics: "Money Logistics",
+  partner: "Partner",
+  fear: "Fear",
+  think_about_it: "Think About It",
+  na: "N/A",
+};
 
 export function CallEntryForm({ reps }: { reps: Rep[] }) {
   const [addTrophy, setAddTrophy] = useState(false);
@@ -149,7 +156,7 @@ export function CallEntryForm({ reps }: { reps: Rep[] }) {
                         )
                       }
                     />
-                    {type.replaceAll("_", " ")}
+                    {objectionLabels[type]}
                   </label>
                   {selected ? <Textarea name={`objection_${type}`} className="mt-2 min-h-16" placeholder="Notes" /> : null}
                 </div>

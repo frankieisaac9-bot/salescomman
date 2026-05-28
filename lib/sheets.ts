@@ -237,11 +237,13 @@ function parseCsv(csv: string) {
 }
 
 function toObjectionType(value: string): ObjectionType {
-  if (value.includes("partner")) return "partner";
-  if (value.includes("think")) return "think_about_it";
-  if (value.includes("fear")) return "fear";
-  if (value.includes("money") || value.includes("price") || value.includes("cost")) return "money";
-  return "other";
+  const v = value.toLowerCase();
+  if (v.includes("money") || v.includes("logistics") || v.includes("price") || v.includes("cost") || v.includes("financial")) return "money_logistics";
+  if (v.includes("partner")) return "partner";
+  if (v.includes("fear")) return "fear";
+  if (v.includes("think")) return "think_about_it";
+  if (v.includes("n/a") || v.includes("na")) return "na";
+  return "money_logistics"; // default to most common
 }
 
 function normalizeKey(key: string) {
