@@ -132,7 +132,8 @@ export function readObjections(payload: Record<string, unknown>) {
     .split(/[;,|]/)
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean)
-    .map(toObjectionType);
+    .map(toObjectionType)
+    .filter((t): t is ObjectionType => t !== null);
 
   return Array.from(new Set(values)).map((type) => ({ type, notes }));
 }
@@ -236,14 +237,17 @@ function parseCsv(csv: string) {
   return rows;
 }
 
-function toObjectionType(value: string): ObjectionType {
+function toObjectionType(value: string): ObjectionType | null {
   const v = value.toLowerCase();
+  if (v.includes("money") && v.includes("log")) return "money_logistics";
+  if (v.includes("money") && (v.includes("fear") || v.includes("scare"))) return "money_fear";
   if (v.includes("money") || v.includes("logistics") || v.includes("price") || v.includes("cost") || v.includes("financial")) return "money_logistics";
   if (v.includes("partner")) return "partner";
-  if (v.includes("fear")) return "fear";
+  if (v.includes("fear") && v.includes("fail")) return "fear_of_failure";
+  if (v.includes("fear")) return "fear_of_failure";
   if (v.includes("think")) return "think_about_it";
-  if (v.includes("n/a") || v.includes("na")) return "na";
-  return "money_logistics"; // default to most common
+  if (v.includes("n/a") || v === "na") return "na";
+  return null; // don't log unrecognised values
 }
 
 function normalizeKey(key: string) {

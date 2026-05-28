@@ -1,5 +1,5 @@
 export type CallStatus = "booked" | "showed" | "no_show" | "closed" | "lost";
-export type ObjectionType = "money_logistics" | "partner" | "fear" | "think_about_it" | "na";
+export type ObjectionType = "money_logistics" | "money_fear" | "partner" | "think_about_it" | "fear_of_failure" | "na";
 export type LeadStatus = "pending" | "followed_up" | "converted" | "dead";
 export type FlagLevel = "none" | "day3" | "day7" | "day10" | "day14";
 

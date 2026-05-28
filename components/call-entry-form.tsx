@@ -14,12 +14,13 @@ import type { ObjectionType, Rep } from "@/lib/types";
 
 const statuses = ["booked", "showed", "no_show", "closed", "lost"];
 const products = ["Setter School", "Closer Accelerator", "Sales Team Buildout", "Enterprise Coaching"];
-const objectionTypes: ObjectionType[] = ["money_logistics", "partner", "fear", "think_about_it", "na"];
+const objectionTypes: ObjectionType[] = ["money_logistics", "money_fear", "partner", "think_about_it", "fear_of_failure", "na"];
 const objectionLabels: Record<ObjectionType, string> = {
   money_logistics: "Money Logistics",
+  money_fear: "Money Fear",
   partner: "Partner",
-  fear: "Fear",
   think_about_it: "Think About It",
+  fear_of_failure: "Fear of Failure",
   na: "N/A",
 };
 
