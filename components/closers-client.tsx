@@ -37,8 +37,9 @@ function statusColor(status: string | null): string {
 }
 
 export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: DailyStat[] }) {
+  // "Downsells" is a revenue tab, not a rep — include in totals but exclude from filter/comparison
   const repNames = useMemo(() => {
-    const names = Array.from(new Set(stats.map(s => s.rep_name).filter(Boolean))) as string[];
+    const names = Array.from(new Set(stats.map(s => s.rep_name).filter(n => Boolean(n) && n !== "Downsells"))) as string[];
     return ["All", ...names.sort()];
   }, [stats]);
 

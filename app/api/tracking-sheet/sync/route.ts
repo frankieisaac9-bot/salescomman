@@ -5,7 +5,8 @@ const SHEET_ID = process.env.GOOGLE_SHEETS_TRACKING_ID;
 
 const TABS = [
   "Dawid (dark blue)",
-  "James (red)"
+  "James (red)",
+  "Downsells"
 ];
 
 const MONTH_MAP: Record<string, number> = {
@@ -70,7 +71,7 @@ function parseCsvToRows(csv: string): Record<string, unknown>[] {
   const [headers, ...dataRows] = rows;
   if (!headers) return [];
   return dataRows.map((r) => {
-    const obj: Record<string, unknown> = {};
+    const obj: Record<string, unknown> = { __col0: r[0] ?? "" };
     headers.forEach((h, idx) => { obj[h.trim()] = r[idx] ?? ""; });
     return obj;
   });
@@ -121,7 +122,7 @@ export async function POST(_request: Request) {
 
       const payloads = rows
         .map((row) => {
-          const dateStr = parseTrackingDate(String(row["s"] ?? row[""] ?? ""));
+          const dateStr = parseTrackingDate(String(row["__col0"] ?? row["s"] ?? row[""] ?? ""));
           if (!dateStr) return null;
           const booked = parseCount(row["Booked"]);
           const hasCash = parseAmount(row["Cash Collected"]) > 0 || parseAmount(row["Rev Generated"]) > 0;
