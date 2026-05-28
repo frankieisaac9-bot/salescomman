@@ -7,8 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi-card";
 import type { CloserCall, DailyStat } from "@/lib/types";
 
-const RANGES = ["MTD", "30d", "All"] as const;
-type RangeFilter = (typeof RANGES)[number];
+const MONTHS = [
+  { value: "2026-01", label: "Jan" }, { value: "2026-02", label: "Feb" },
+  { value: "2026-03", label: "Mar" }, { value: "2026-04", label: "Apr" },
+  { value: "2026-05", label: "May" }, { value: "2026-06", label: "Jun" },
+  { value: "2026-07", label: "Jul" }, { value: "2026-08", label: "Aug" },
+  { value: "2026-09", label: "Sep" }, { value: "2026-10", label: "Oct" },
+  { value: "2026-11", label: "Nov" }, { value: "2026-12", label: "Dec" },
+  { value: "all", label: "All" },
+];
+const CURRENT_MONTH = "2026-05";
 
 const REP_COLORS: Record<string, string> = { Dawid: "#3b82f6", James: "#ef4444" };
 
@@ -19,11 +27,18 @@ function shortDate(iso: string) {
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
-function getRangeSince(range: RangeFilter): string | null {
-  const now = new Date();
-  if (range === "MTD") return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  if (range === "30d") { const d = new Date(now); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); }
-  return null;
+function getMonthRange(month: string): { start: string; end: string } | null {
+  if (month === "all") return null;
+  const [year, m] = month.split("-").map(Number);
+  const start = `${year}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, m, 0).getDate();
+  const end = `${year}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end };
+}
+function monthLabel(month: string): string {
+  if (month === "all") return "All time";
+  const [year, m] = month.split("-").map(Number);
+  return new Date(year, m - 1, 1).toLocaleString("default", { month: "long", year: "numeric" });
 }
 
 function statusColor(status: string | null): string {
@@ -44,18 +59,18 @@ export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: Da
   }, [stats]);
 
   const [rep, setRep] = useState<string>("All");
-  const [range, setRange] = useState<RangeFilter>("MTD");
+  const [month, setMonth] = useState<string>(CURRENT_MONTH);
   const [search, setSearch] = useState("");
 
   // Filter tracking stats
   const filteredStats = useMemo(() => {
-    const since = getRangeSince(range);
+    const range = getMonthRange(month);
     return stats.filter(s => {
       if (rep !== "All" && s.rep_name !== rep) return false;
-      if (since && s.date < since) return false;
+      if (range && (s.date < range.start || s.date > range.end)) return false;
       return true;
     });
-  }, [stats, rep, range]);
+  }, [stats, rep, month]);
 
   // Aggregate KPIs from tracking sheet (source of truth)
   const totals = useMemo(() => filteredStats.reduce((acc, s) => ({
@@ -75,9 +90,7 @@ export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: Da
   const closeRate = totals.showed > 0 ? (totals.closed / totals.showed) * 100 : 0;
   const offerRate = totals.showed > 0 ? (totals.offer / totals.showed) * 100 : 0;
 
-  const rangeLabel = range === "MTD"
-    ? new Date().toLocaleString("default", { month: "long" }) + " to date"
-    : range === "30d" ? "Last 30 days" : "All time";
+  const rangeLabel = monthLabel(month);
 
   // Chart — daily data from tracking sheet
   const chartData = useMemo(() => {
@@ -98,9 +111,9 @@ export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: Da
 
   // Rep comparison from tracking sheet
   const repRows = useMemo(() => {
-    const since = getRangeSince(range);
+    const range = getMonthRange(month);
     return repNames.filter(r => r !== "All").map(name => {
-      const rows = stats.filter(s => s.rep_name === name && (!since || s.date >= since));
+      const rows = stats.filter(s => s.rep_name === name && (!range || (s.date >= range.start && s.date <= range.end)));
       const t = rows.reduce((a, s) => ({
         booked: a.booked + s.booked, showed: a.showed + s.showed,
         closed: a.closed + s.closed, offer: a.offer + s.offer,
@@ -114,23 +127,23 @@ export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: Da
         closeRate: t.showed > 0 ? (t.closed / t.showed) * 100 : 0,
       };
     });
-  }, [stats, repNames, range]);
+  }, [stats, repNames, month]);
 
   // Call log from post-call form (detail only)
   const logRows = useMemo(() => {
-    const since = getRangeSince(range);
+    const range = getMonthRange(month);
     const q = search.toLowerCase();
     return calls
       .filter(c => {
         if (rep !== "All" && c.rep_name !== rep) return false;
-        if (since && c.date < since) return false;
+        if (range && (c.date < range.start || c.date > range.end)) return false;
         if (q && ![c.rep_name, c.lead_email, c.setter, c.lead_status, c.problem]
           .some(f => (f ?? "").toLowerCase().includes(q))) return false;
         return true;
       })
       .slice()
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [calls, rep, range, search]);
+  }, [calls, rep, month, search]);
 
   return (
     <div className="space-y-5">
@@ -144,13 +157,23 @@ export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: Da
             </button>
           ))}
         </div>
-        <div className="flex rounded-lg border border-white/10 bg-white/[0.03] p-1 gap-1">
-          {RANGES.map(r => (
-            <button key={r} onClick={() => setRange(r)}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${range === r ? "bg-white/15 text-white" : "text-slate-300 hover:text-white hover:bg-white/10"}`}>
-              {r}
-            </button>
-          ))}
+        <div className="flex flex-wrap rounded-lg border border-white/10 bg-white/[0.03] p-1 gap-1">
+          {MONTHS.map(m => {
+            const future = m.value !== "all" && m.value > CURRENT_MONTH;
+            return (
+              <button
+                key={m.value}
+                onClick={() => !future && setMonth(m.value)}
+                disabled={future}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  month === m.value ? "bg-white/15 text-white" :
+                  future ? "text-slate-600 cursor-not-allowed" :
+                  "text-slate-300 hover:text-white hover:bg-white/10"
+                }`}>
+                {m.label}
+              </button>
+            );
+          })}
         </div>
         <span className="text-xs text-muted-foreground">{rangeLabel} · stats from tracking sheet</span>
       </div>
