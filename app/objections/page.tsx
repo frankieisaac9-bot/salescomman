@@ -2,8 +2,7 @@ import { ObjectionTrendChart } from "@/components/objection-trend-chart";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getObjectionsData } from "@/lib/data";
-import { objectionsByDay } from "@/lib/metrics";
+import { getCloserCalls } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -29,24 +28,47 @@ const RANK_BADGE_COLORS = [
   "bg-orange-400/20 text-orange-300",
 ];
 
-const MONTHS = [
-  { value: "2026-01", label: "Jan" },
-  { value: "2026-02", label: "Feb" },
-  { value: "2026-03", label: "Mar" },
-  { value: "2026-04", label: "Apr" },
-  { value: "2026-05", label: "May" },
-  { value: "2026-06", label: "Jun" },
-  { value: "2026-07", label: "Jul" },
-  { value: "2026-08", label: "Aug" },
-  { value: "2026-09", label: "Sep" },
-  { value: "2026-10", label: "Oct" },
-  { value: "2026-11", label: "Nov" },
-  { value: "2026-12", label: "Dec" },
-  { value: "all", label: "All" },
-];
+type ObjType = "money_logistics" | "money_fear" | "partner" | "think_about_it" | "fear_of_failure" | "na";
+
+const OBJ_LABELS: Record<ObjType, string> = {
+  money_logistics: "Money Logistics",
+  money_fear: "Money Fear",
+  partner: "Partner",
+  think_about_it: "Think About It",
+  fear_of_failure: "Fear of Failure",
+  na: "N/A",
+};
+
+function mapObstacle(raw: string): ObjType | null {
+  const v = raw.toLowerCase().trim();
+  if (v.includes("money") && v.includes("log")) return "money_logistics";
+  if (v.includes("money") && (v.includes("fear") || v.includes("scare"))) return "money_fear";
+  if (v.includes("money") || v.includes("logistics") || v.includes("financial") || v.includes("price") || v.includes("cost")) return "money_logistics";
+  if (v.includes("partner")) return "partner";
+  if (v.includes("fear") && v.includes("fail")) return "fear_of_failure";
+  if (v.includes("fear")) return "fear_of_failure";
+  if (v.includes("think")) return "think_about_it";
+  if (v === "n/a" || v === "na") return "na";
+  return null;
+}
+
+function isOvercome(leadStatus: string | null): boolean {
+  const s = (leadStatus ?? "").toLowerCase();
+  return s.includes("closed") || s.includes("deposit") || s.includes("won");
+}
 
 const now = new Date();
 const CURRENT_MONTH = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+const MONTHS = [
+  { value: "2026-01", label: "Jan" }, { value: "2026-02", label: "Feb" },
+  { value: "2026-03", label: "Mar" }, { value: "2026-04", label: "Apr" },
+  { value: "2026-05", label: "May" }, { value: "2026-06", label: "Jun" },
+  { value: "2026-07", label: "Jul" }, { value: "2026-08", label: "Aug" },
+  { value: "2026-09", label: "Sep" }, { value: "2026-10", label: "Oct" },
+  { value: "2026-11", label: "Nov" }, { value: "2026-12", label: "Dec" },
+  { value: "all", label: "All" },
+];
 
 export default async function ObjectionsPage({
   searchParams,
@@ -56,35 +78,48 @@ export default async function ObjectionsPage({
   const { month: monthParam } = await searchParams;
   const selectedMonth = monthParam ?? CURRENT_MONTH;
 
-  const { objections: allObjections, reps } = await getObjectionsData();
+  const { calls: allCalls } = await getCloserCalls();
 
-  // Filter by call date (not sync date)
-  const objections = selectedMonth === "all"
-    ? allObjections
-    : allObjections.filter((o) => {
-        const date = o.calls?.call_date ?? o.created_at;
-        return date.startsWith(selectedMonth);
+  // Filter by month
+  const calls = selectedMonth === "all"
+    ? allCalls
+    : allCalls.filter((c) => c.date.startsWith(selectedMonth));
+
+  // Expand each call's obstacles field into individual objection entries
+  type ObjEntry = { type: ObjType; overcome: boolean; cash: number; rep: string; date: string };
+  const entries: ObjEntry[] = [];
+  for (const call of calls) {
+    if (!call.obstacles) continue;
+    const parts = call.obstacles.split(/[,;]/).map((p) => p.trim()).filter(Boolean);
+    for (const part of parts) {
+      const type = mapObstacle(part);
+      if (!type || type === "na") continue; // skip N/A and unrecognised
+      entries.push({
+        type,
+        overcome: isOvercome(call.lead_status),
+        cash: Number(call.cash_collected) || 0,
+        rep: call.rep_name,
+        date: call.date,
       });
-
-  const totalObjections = objections.length;
-
-  // Group by type and compute stats
-  const grouped: Record<string, typeof objections> = {};
-  for (const obj of objections) {
-    const key = obj.type ?? "other";
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(obj);
+    }
   }
 
-  const breakdown = Object.entries(grouped)
+  const totalObjections = entries.length;
+
+  // Group by type
+  const grouped: Partial<Record<ObjType, ObjEntry[]>> = {};
+  for (const e of entries) {
+    if (!grouped[e.type]) grouped[e.type] = [];
+    grouped[e.type]!.push(e);
+  }
+
+  const breakdown = (Object.entries(grouped) as [ObjType, ObjEntry[]][])
     .map(([type, objs]) => {
-      const overcome = objs.filter((o) => o.calls?.status === "closed");
-      const revenue = overcome.reduce(
-        (s, o) => s + (Number(o.calls?.cash_collected) || Number(o.calls?.revenue_generated) || 0),
-        0
-      );
+      const overcome = objs.filter((o) => o.overcome);
+      const revenue = overcome.reduce((s, o) => s + o.cash, 0);
       return {
-        type: titleCase(type),
+        type,
+        label: OBJ_LABELS[type],
         count: objs.length,
         pctOfTotal: totalObjections > 0 ? (objs.length / totalObjections) * 100 : 0,
         timesOvercome: overcome.length,
@@ -96,13 +131,28 @@ export default async function ObjectionsPage({
     .sort((a, b) => b.count - a.count);
 
   const top3 = breakdown.slice(0, 3);
-  const trend = objectionsByDay(objections);
+
+  // Trend data — objections per day
+  const trendMap: Record<string, number> = {};
+  for (const e of entries) {
+    trendMap[e.date] = (trendMap[e.date] ?? 0) + 1;
+  }
+  const trend = Object.entries(trendMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, count]) => ({ date, count }));
+
+  // Per-rep top objection
+  const repObjMap: Record<string, Record<string, number>> = {};
+  for (const e of entries) {
+    if (!repObjMap[e.rep]) repObjMap[e.rep] = {};
+    repObjMap[e.rep][e.type] = (repObjMap[e.rep][e.type] ?? 0) + 1;
+  }
 
   return (
     <>
       <PageHeader
         title="Objection Intelligence"
-        description="Frequency, overcome rates, and revenue impact for every objection logged on calls."
+        description="Frequency, overcome rates, and revenue impact — sourced directly from post-call forms."
       />
 
       {/* Month filter */}
@@ -137,11 +187,11 @@ export default async function ObjectionsPage({
                   </span>
                   <span className="text-xs text-red-400 font-medium">— {pct(obj.pctOfTotal)}</span>
                 </div>
-                <div className="text-lg font-bold">{obj.type}</div>
+                <div className="text-lg font-bold">{obj.label}</div>
                 <div className="mt-1 text-3xl font-black">{obj.count}</div>
                 <div className="text-xs text-muted-foreground">{pct(obj.pctOfTotal)} of objections</div>
                 <div className="mt-2 text-xs text-muted-foreground">
-                  prev. {obj.timesOvercome > 0 ? obj.timesOvercome : 0} overcome
+                  prev. {obj.timesOvercome} overcome
                 </div>
               </CardContent>
             </Card>
@@ -167,13 +217,13 @@ export default async function ObjectionsPage({
               {breakdown.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                    No objections logged yet
+                    No objections logged for this period
                   </td>
                 </tr>
               ) : (
                 breakdown.map((row) => (
                   <tr key={row.type} className="border-b border-white/10 hover:bg-white/[0.04]">
-                    <td className="px-4 py-3 font-medium">{row.type}</td>
+                    <td className="px-4 py-3 font-medium">{row.label}</td>
                     <td className="px-4 py-3">{row.count}</td>
                     <td className="px-4 py-3 text-muted-foreground">{pct(row.pctOfTotal)}</td>
                     <td className="px-4 py-3">{row.timesOvercome}</td>
@@ -204,7 +254,7 @@ export default async function ObjectionsPage({
         <CardContent className="h-64">
           {trend.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No trend data yet — log calls with objections to populate this chart
+              No trend data for this period
             </div>
           ) : (
             <ObjectionTrendChart data={trend} />
@@ -218,19 +268,15 @@ export default async function ObjectionsPage({
           <CardTitle>Per-Rep Top Objection</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {reps.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No rep data yet</div>
+          {Object.keys(repObjMap).length === 0 ? (
+            <div className="text-sm text-muted-foreground">No data for this period</div>
           ) : (
-            reps.map((rep) => {
-              const repObjs = objections.filter((o) => o.rep_id === rep.id);
-              if (repObjs.length === 0) return null;
-              const counts: Record<string, number> = {};
-              for (const o of repObjs) counts[o.type] = (counts[o.type] ?? 0) + 1;
+            Object.entries(repObjMap).map(([repName, counts]) => {
               const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
               return (
-                <div key={rep.id} className="flex items-center justify-between rounded-md border border-white/10 bg-white/[0.03] p-3">
-                  <span className="font-medium">{rep.name}</span>
-                  <Badge>{top ? `${titleCase(top[0])} (${top[1]})` : "No objections"}</Badge>
+                <div key={repName} className="flex items-center justify-between rounded-md border border-white/10 bg-white/[0.03] p-3">
+                  <span className="font-medium">{repName}</span>
+                  <Badge>{top ? `${OBJ_LABELS[top[0] as ObjType] ?? titleCase(top[0])} (${top[1]})` : "No objections"}</Badge>
                 </div>
               );
             })
@@ -241,46 +287,46 @@ export default async function ObjectionsPage({
       {/* Raw log */}
       <Card>
         <CardHeader>
-          <CardTitle>Logged Objections</CardTitle>
+          <CardTitle>Call Log with Objections ({calls.filter(c => c.obstacles).length})</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[800px] text-sm">
+          <table className="w-full min-w-[700px] text-sm">
             <thead className="border-b border-white/10 bg-white/[0.03] text-left text-xs uppercase text-muted-foreground">
               <tr>
-                {["Date", "Rep", "Type", "Call Date", "Outcome", "Cash", "Notes"].map((h) => (
+                {["Date", "Rep", "Email", "Obstacle", "Status", "Cash"].map((h) => (
                   <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {objections.length === 0 ? (
+              {calls.filter(c => c.obstacles).length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                    No objections logged yet
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                    No calls with objections logged for this period
                   </td>
                 </tr>
               ) : (
-                objections.map((obj) => (
-                  <tr key={obj.id} className="border-b border-white/10 hover:bg-white/[0.04]">
-                    <td className="px-4 py-3">{new Date(obj.created_at).toLocaleDateString()}</td>
-                    <td className="px-4 py-3">{obj.reps?.name ?? "—"}</td>
-                    <td className="px-4 py-3"><Badge>{titleCase(obj.type)}</Badge></td>
-                    <td className="px-4 py-3">
-                      {obj.calls?.call_date ? new Date(obj.calls.call_date).toLocaleDateString() : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {obj.calls?.status ? (
-                        <span className={obj.calls.status === "closed" ? "text-emerald-400" : "text-muted-foreground"}>
-                          {obj.calls.status.replace("_", " ")}
+                calls
+                  .filter((c) => c.obstacles)
+                  .sort((a, b) => b.date.localeCompare(a.date))
+                  .map((c) => (
+                    <tr key={c.id} className="border-b border-white/10 hover:bg-white/[0.04]">
+                      <td className="px-4 py-3">{new Date(c.date + "T00:00:00").toLocaleDateString()}</td>
+                      <td className="px-4 py-3 font-medium">{c.rep_name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{c.lead_email ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <Badge>{c.obstacles}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={isOvercome(c.lead_status) ? "text-emerald-400" : "text-muted-foreground"}>
+                          {c.lead_status ?? "—"}
                         </span>
-                      ) : "—"}
-                    </td>
-                    <td className="px-4 py-3 font-medium">
-                      {obj.calls?.cash_collected ? currency(Number(obj.calls.cash_collected)) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{obj.notes ?? "—"}</td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-4 py-3 font-medium">
+                        {Number(c.cash_collected) > 0 ? currency(Number(c.cash_collected)) : "—"}
+                      </td>
+                    </tr>
+                  ))
               )}
             </tbody>
           </table>
