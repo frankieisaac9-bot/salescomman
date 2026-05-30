@@ -51,6 +51,7 @@ function sumStats(rows: SetterStat[]) {
       follow_ups: acc.follow_ups + r.follow_ups,
       calls_pitched: acc.calls_pitched + r.calls_pitched,
       booked_calls: acc.booked_calls + r.booked_calls,
+      calls_on_calendar: acc.calls_on_calendar + (r.calls_on_calendar ?? 0),
       calls_shown: acc.calls_shown + r.calls_shown,
       no_shows: acc.no_shows + r.no_shows,
       cancelled: acc.cancelled + r.cancelled,
@@ -60,7 +61,7 @@ function sumStats(rows: SetterStat[]) {
     }),
     {
       new_leads: 0, dq: 0, follow_ups: 0, calls_pitched: 0,
-      booked_calls: 0, calls_shown: 0, no_shows: 0, cancelled: 0,
+      booked_calls: 0, calls_on_calendar: 0, calls_shown: 0, no_shows: 0, cancelled: 0,
       reschedules: 0, cash_collected: 0, revenue: 0
     }
   );
@@ -249,6 +250,46 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Full daily data table */}
+      <Card>
+        <CardHeader><CardTitle>Daily Stats Log ({filtered.length} rows)</CardTitle></CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full min-w-[1100px] text-sm">
+            <thead className="border-b border-white/10 bg-white/[0.03] text-left text-xs uppercase text-muted-foreground">
+              <tr>
+                {["Setter","Date","New Leads","DQs","Follow-Ups","Pitched","Booked","On Calendar","Shown","No Shows","Cancelled","Reschedules","Cash","Revenue"].map(h => (
+                  <th key={h} className="px-3 py-3 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={14} className="px-4 py-8 text-center text-muted-foreground">No data for this filter</td></tr>
+              ) : (
+                [...filtered].sort((a, b) => b.date.localeCompare(a.date) || a.setter_name.localeCompare(b.setter_name)).map((r) => (
+                  <tr key={r.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                    <td className="px-3 py-2.5 font-medium">{r.setter_name}</td>
+                    <td className="px-3 py-2.5 text-slate-400 whitespace-nowrap">{shortDate(r.date)}</td>
+                    <td className="px-3 py-2.5 text-right">{fmt(r.new_leads)}</td>
+                    <td className="px-3 py-2.5 text-right text-red-400">{fmt(r.dq)}</td>
+                    <td className="px-3 py-2.5 text-right">{fmt(r.follow_ups)}</td>
+                    <td className="px-3 py-2.5 text-right">{fmt(r.calls_pitched)}</td>
+                    <td className="px-3 py-2.5 text-right text-blue-300 font-medium">{fmt(r.booked_calls)}</td>
+                    <td className="px-3 py-2.5 text-right text-purple-300">{fmt(r.calls_on_calendar ?? 0)}</td>
+                    <td className="px-3 py-2.5 text-right text-emerald-300">{fmt(r.calls_shown)}</td>
+                    <td className="px-3 py-2.5 text-right text-red-400">{fmt(r.no_shows)}</td>
+                    <td className="px-3 py-2.5 text-right text-yellow-400">{fmt(r.cancelled)}</td>
+                    <td className="px-3 py-2.5 text-right">{fmt(r.reschedules)}</td>
+                    <td className="px-3 py-2.5 text-right text-amber-300 font-medium">{Number(r.cash_collected) > 0 ? currency(Number(r.cash_collected)) : "—"}</td>
+                    <td className="px-3 py-2.5 text-right text-emerald-300">{Number(r.revenue) > 0 ? currency(Number(r.revenue)) : "—"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
 
       {/* Side-by-side comparison table */}
       {setter === "Both" && (

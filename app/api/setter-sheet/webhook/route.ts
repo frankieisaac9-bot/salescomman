@@ -21,7 +21,7 @@ function parseNum(value: unknown): number {
 
 const ZERO_ROW = {
   new_leads: 0, dq: 0, follow_ups: 0, calls_pitched: 0,
-  booked_calls: 0, calls_shown: 0, no_shows: 0, cancelled: 0,
+  booked_calls: 0, calls_on_calendar: 0, calls_shown: 0, no_shows: 0, cancelled: 0,
   reschedules: 0, cash_collected: 0, revenue: 0
 };
 
@@ -63,6 +63,7 @@ export async function POST(request: Request) {
         follow_ups: parseNum(row[idx("follow ups")]),
         calls_pitched: parseNum(row[idx("calls pitched/links sent")]),
         booked_calls: parseNum(row[idx("booked calls")]),
+        calls_on_calendar: parseNum(row[idx("calls on the calendar")] ?? row[idx("calls on calendar")] ?? ""),
         calls_shown: parseNum(row[idx("calls shown")]),
         no_shows: parseNum(row[idx("no shows")]),
         cancelled: parseNum(row[idx("cancelled")]),

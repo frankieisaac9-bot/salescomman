@@ -95,6 +95,7 @@ export type SetterStat = {
   follow_ups: number;
   calls_pitched: number;
   booked_calls: number;
+  calls_on_calendar: number;
   calls_shown: number;
   no_shows: number;
   cancelled: number;

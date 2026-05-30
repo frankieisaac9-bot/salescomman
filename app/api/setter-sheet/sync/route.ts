@@ -82,6 +82,7 @@ export async function POST(_request: Request) {
           follow_ups: parseNum(row["follow ups"]),
           calls_pitched: parseNum(row["calls pitched/links sent"]),
           booked_calls: parseNum(row["booked calls"]),
+          calls_on_calendar: parseNum(row["calls on the calendar"] ?? row["calls on calendar"] ?? row["calls on the calendar that day"] ?? ""),
           calls_shown: parseNum(row["calls shown"]),
           no_shows: parseNum(row["no shows"]),
           cancelled: parseNum(row["cancelled"]),
@@ -96,7 +97,7 @@ export async function POST(_request: Request) {
 
         // Skip completely empty rows (placeholder future-date rows in the sheet)
         const numFields = ["new_leads","dq","follow_ups","calls_pitched","booked_calls",
-          "calls_shown","no_shows","cancelled","reschedules","cash_collected","revenue"];
+          "calls_on_calendar","calls_shown","no_shows","cancelled","reschedules","cash_collected","revenue"];
         const hasData = numFields.reduce((sum, k) => sum + ((payload[k] as number) || 0), 0) > 0;
         if (!hasData) return null;
 
