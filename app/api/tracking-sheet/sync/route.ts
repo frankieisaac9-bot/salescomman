@@ -3,10 +3,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_TRACKING_ID;
 
-const TABS = [
-  "Dawid (dark blue)",
-  "James (red)",
-  "Downsells"
+const TABS: { name: string; repFirstName: string; gid?: string }[] = [
+  { name: "Dawid (dark blue)", repFirstName: "Dawid" },
+  { name: "James (red)",       repFirstName: "James" },
+  { name: "Downsells",         repFirstName: "Downsells", gid: "27092439" },
 ];
 
 const MONTH_MAP: Record<string, number> = {
@@ -40,8 +40,9 @@ function parseCount(value: unknown): number {
   return isNaN(num) ? 0 : num;
 }
 
-async function fetchTab(sheetId: string, tabName: string): Promise<Record<string, unknown>[]> {
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+async function fetchTab(sheetId: string, tabName: string, gid?: string): Promise<Record<string, unknown>[]> {
+  const param = gid ? `gid=${gid}` : `sheet=${encodeURIComponent(tabName)}`;
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&${param}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to fetch tab "${tabName}": ${res.status}`);
   const csv = await res.text();
@@ -103,22 +104,22 @@ export async function POST(_request: Request) {
     const tabResults: Record<string, unknown> = {};
 
     for (const tab of TABS) {
-      const repFirstName = tab.split(" ")[0];
+      const { name: tabName, repFirstName, gid } = tab;
       const repId = findRepId(repFirstName);
 
       let rows: Record<string, unknown>[] = [];
       try {
-        rows = await fetchTab(SHEET_ID, tab);
+        rows = await fetchTab(SHEET_ID, tabName, gid);
       } catch (fetchErr) {
         const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-        console.error(`[Tracking sync] Failed to fetch tab "${tab}":`, msg);
-        tabResults[tab] = { error: msg, raw_rows: 0, upserted: 0 };
+        console.error(`[Tracking sync] Failed to fetch tab "${tabName}":`, msg);
+        tabResults[tabName] = { error: msg, raw_rows: 0, upserted: 0 };
         continue;
       }
 
       // Log first row keys so we can debug column names
       const firstRowKeys = rows[0] ? Object.keys(rows[0]) : [];
-      console.log(`[Tracking sync] Tab "${tab}" — ${rows.length} raw rows, cols:`, firstRowKeys.slice(0, 6));
+      console.log(`[Tracking sync] Tab "${tabName}" — ${rows.length} raw rows, cols:`, firstRowKeys.slice(0, 6));
 
       const payloads = rows
         .map((row) => {
@@ -150,14 +151,14 @@ export async function POST(_request: Request) {
           .from("daily_stats")
           .upsert(payloads, { onConflict: "rep_name,date" });
         if (error) {
-          console.error(`[Tracking sync] Upsert error for tab "${tab}":`, error.message);
-          tabResults[tab] = { error: error.message, raw_rows: rows.length, upserted: 0 };
+          console.error(`[Tracking sync] Upsert error for tab "${tabName}":`, error.message);
+          tabResults[tabName] = { error: error.message, raw_rows: rows.length, upserted: 0 };
           continue;
         }
         totalUpserted += payloads.length;
-        tabResults[tab] = { raw_rows: rows.length, upserted: payloads.length };
+        tabResults[tabName] = { raw_rows: rows.length, upserted: payloads.length };
       } else {
-        tabResults[tab] = { raw_rows: rows.length, upserted: 0, note: "no valid rows after filter" };
+        tabResults[tabName] = { raw_rows: rows.length, upserted: 0, note: "no valid rows after filter" };
       }
     }
 
