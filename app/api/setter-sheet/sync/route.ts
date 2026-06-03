@@ -51,9 +51,13 @@ function parseCsv(csv: string): Record<string, unknown>[] {
   if (cell || row.length) { row.push(cell); rows.push(row); }
   const [headers, ...data] = rows;
   if (!headers) return [];
+  // Include both named keys AND positional __colN keys for reliable index-based fallback
   return data.map((r) => {
     const obj: Record<string, unknown> = {};
-    headers.forEach((h, idx) => { obj[h.trim().toLowerCase()] = r[idx] ?? ""; });
+    headers.forEach((h, idx) => {
+      obj[h.trim().toLowerCase()] = r[idx] ?? "";
+      obj[`__col${idx}`] = r[idx] ?? "";
+    });
     return obj;
   });
 }
@@ -66,6 +70,12 @@ export async function POST(_request: Request) {
   try {
     const supabase = createSupabaseAdminClient();
     const rows = await fetchTab(SHEET_ID, TAB);
+
+    // Log headers so we can debug column name mismatches
+    if (rows[0]) {
+      const headers = Object.keys(rows[0]).filter(k => !k.startsWith("__col"));
+      console.log("[Setter sync] Column headers:", headers);
+    }
 
     const payloads = rows
       .map((row) => {
@@ -82,8 +92,8 @@ export async function POST(_request: Request) {
           follow_ups: parseNum(row["follow ups"]),
           calls_pitched: parseNum(row["calls pitched/links sent"]),
           booked_calls: parseNum(row["booked calls"]),
-          calls_on_calendar: parseNum(row["calls on the calendar"] ?? row["calls on calendar"] ?? row["calls on the calendar that day"] ?? ""),
-          calls_shown: parseNum(row["calls shown"]),
+          calls_on_calendar: parseNum(row["__col7"]),   // column H by index — most reliable
+          calls_shown: parseNum(row["calls shown"] ?? row["__col8"]),
           no_shows: parseNum(row["no shows"]),
           cancelled: parseNum(row["cancelled"]),
           reschedules: parseNum(row["reschedules"]),
