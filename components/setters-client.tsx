@@ -82,7 +82,7 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
 
   const totals = useMemo(() => sumStats(filtered), [filtered]);
   const bookRate = totals.calls_pitched > 0 ? (totals.booked_calls / totals.calls_pitched) * 100 : 0;
-  const showRate = totals.booked_calls > 0 ? (totals.calls_shown / totals.booked_calls) * 100 : 0;
+  const showRate = totals.calls_on_calendar > 0 ? (totals.calls_shown / totals.calls_on_calendar) * 100 : 0;
 
   // Daily chart data — aggregate by date across setters if "Both"
   const chartData = useMemo(() => {
@@ -123,7 +123,7 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
         name,
         ...t,
         bookRate: t.calls_pitched > 0 ? (t.booked_calls / t.calls_pitched) * 100 : 0,
-        showRate: t.booked_calls > 0 ? (t.calls_shown / t.booked_calls) * 100 : 0
+        showRate: t.calls_on_calendar > 0 ? (t.calls_shown / t.calls_on_calendar) * 100 : 0
       };
     });
   }, [stats, setterNames, range]);
@@ -173,7 +173,7 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Booked Calls" value={fmt(totals.booked_calls)} icon={PhoneCall} tone="blue" detail={`${fmt(totals.calls_pitched)} pitched`} />
         <KpiCard label="Book Rate" value={pct(bookRate)} icon={Target} tone="gold" detail={`booked / pitched`} />
-        <KpiCard label="Show Rate" value={pct(showRate)} icon={Percent} tone="green" detail={`${fmt(totals.calls_shown)} showed up`} />
+        <KpiCard label="Show Rate" value={pct(showRate)} icon={Percent} tone="green" detail={`${fmt(totals.calls_shown)} of ${fmt(totals.calls_on_calendar)} on calendar`} />
         <KpiCard label="Cash Collected" value={currency(totals.cash_collected)} icon={DollarSign} tone="gold" detail={rangeLabel} />
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
