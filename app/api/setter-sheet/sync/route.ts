@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_SETTER_ID;
-const TAB = "Setter Stats";
+
+// SETTER_SHEET_TABS: comma-separated tab names, one per setter, e.g. "Leah,Ashley,Selina,Amy"
+// Falls back to a single "Setter Stats" tab if not set.
+function getSetterTabs(): string[] {
+  const env = process.env.SETTER_SHEET_TABS;
+  if (!env) return ["Setter Stats"];
+  return env.split(",").map((t) => t.trim()).filter(Boolean);
+}
 
 function parseSetterDate(raw: string): string | null {
   // Format: M/D/YYYY or MM/DD/YYYY
@@ -62,6 +69,43 @@ function parseCsv(csv: string): Record<string, unknown>[] {
   });
 }
 
+function buildSetterPayloads(rows: Record<string, unknown>[]): object[] {
+  return rows
+    .map((row) => {
+      const dateStr = parseSetterDate(String(row["date"] ?? ""));
+      if (!dateStr) return null;
+      const setterName = String(row["setter name"] ?? "").trim();
+      if (!setterName) return null;
+
+      const payload: Record<string, unknown> = {
+        setter_name: setterName,
+        date: dateStr,
+        new_leads: parseNum(row["new leads"]),
+        dq: parseNum(row["dq"]),
+        follow_ups: parseNum(row["follow ups"]),
+        calls_pitched: parseNum(row["calls pitched/links sent"]),
+        booked_calls: parseNum(row["booked calls"]),
+        calls_on_calendar: parseNum(row["__col7"]),
+        calls_shown: parseNum(row["calls shown"] ?? row["__col8"]),
+        no_shows: parseNum(row["no shows"]),
+        cancelled: parseNum(row["cancelled"]),
+        reschedules: parseNum(row["reschedules"]),
+      };
+      const rawCash = String(row["cash collected"] ?? "").trim();
+      const rawRevenue = String(row["revenue"] ?? "").trim();
+      if (rawCash) payload.cash_collected = parseNum(row["cash collected"]);
+      if (rawRevenue) payload.revenue = parseNum(row["revenue"]);
+
+      const numFields = ["new_leads","dq","follow_ups","calls_pitched","booked_calls",
+        "calls_on_calendar","calls_shown","no_shows","cancelled","reschedules","cash_collected","revenue"];
+      const hasData = numFields.reduce((sum, k) => sum + ((payload[k] as number) || 0), 0) > 0;
+      if (!hasData) return null;
+
+      return payload;
+    })
+    .filter(Boolean) as object[];
+}
+
 export async function POST(_request: Request) {
   if (!SHEET_ID) {
     return NextResponse.json({ error: "Missing GOOGLE_SHEETS_SETTER_ID" }, { status: 500 });
@@ -69,63 +113,42 @@ export async function POST(_request: Request) {
 
   try {
     const supabase = createSupabaseAdminClient();
-    const rows = await fetchTab(SHEET_ID, TAB);
+    const tabs = getSetterTabs();
+    const allPayloads: object[] = [];
+    const tabResults: Record<string, unknown> = {};
 
-    // Log headers so we can debug column name mismatches
-    if (rows[0]) {
-      const headers = Object.keys(rows[0]).filter(k => !k.startsWith("__col"));
-      console.log("[Setter sync] Column headers:", headers);
+    for (const tab of tabs) {
+      let rows: Record<string, unknown>[] = [];
+      try {
+        rows = await fetchTab(SHEET_ID, tab);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[Setter sync] Failed to fetch tab "${tab}":`, msg);
+        tabResults[tab] = { error: msg };
+        continue;
+      }
+
+      if (rows[0]) {
+        const headers = Object.keys(rows[0]).filter(k => !k.startsWith("__col"));
+        console.log(`[Setter sync] Tab "${tab}" headers:`, headers);
+      }
+
+      const payloads = buildSetterPayloads(rows);
+      allPayloads.push(...payloads);
+      tabResults[tab] = { raw_rows: rows.length, upserted: payloads.length };
     }
 
-    const payloads = rows
-      .map((row) => {
-        const dateStr = parseSetterDate(String(row["date"] ?? ""));
-        if (!dateStr) return null;
-        const setterName = String(row["setter name"] ?? "").trim();
-        if (!setterName) return null;
-
-        const payload: Record<string, unknown> = {
-          setter_name: setterName,
-          date: dateStr,
-          new_leads: parseNum(row["new leads"]),
-          dq: parseNum(row["dq"]),
-          follow_ups: parseNum(row["follow ups"]),
-          calls_pitched: parseNum(row["calls pitched/links sent"]),
-          booked_calls: parseNum(row["booked calls"]),
-          calls_on_calendar: parseNum(row["__col7"]),   // column H by index — most reliable
-          calls_shown: parseNum(row["calls shown"] ?? row["__col8"]),
-          no_shows: parseNum(row["no shows"]),
-          cancelled: parseNum(row["cancelled"]),
-          reschedules: parseNum(row["reschedules"]),
-        };
-        // Only set cash fields if the sheet cell is non-empty — prevents overwriting
-        // real values with 0 when Google serves a cached/stale CSV
-        const rawCash = String(row["cash collected"] ?? "").trim();
-        const rawRevenue = String(row["revenue"] ?? "").trim();
-        if (rawCash) payload.cash_collected = parseNum(row["cash collected"]);
-        if (rawRevenue) payload.revenue = parseNum(row["revenue"]);
-
-        // Skip completely empty rows (placeholder future-date rows in the sheet)
-        const numFields = ["new_leads","dq","follow_ups","calls_pitched","booked_calls",
-          "calls_on_calendar","calls_shown","no_shows","cancelled","reschedules","cash_collected","revenue"];
-        const hasData = numFields.reduce((sum, k) => sum + ((payload[k] as number) || 0), 0) > 0;
-        if (!hasData) return null;
-
-        return payload;
-      })
-      .filter(Boolean) as object[];
-
-    if (!payloads.length) {
-      return NextResponse.json({ ok: true, rows_upserted: 0 });
+    if (!allPayloads.length) {
+      return NextResponse.json({ ok: true, rows_upserted: 0, tabs: tabResults });
     }
 
     const { error } = await supabase
       .from("setter_stats")
-      .upsert(payloads, { onConflict: "setter_name,date" });
+      .upsert(allPayloads, { onConflict: "setter_name,date" });
 
     if (error) throw new Error(error.message);
 
-    return NextResponse.json({ ok: true, rows_upserted: payloads.length });
+    return NextResponse.json({ ok: true, rows_upserted: allPayloads.length, tabs: tabResults });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[Setter sheet sync error]", message);

@@ -3,11 +3,24 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_TRACKING_ID;
 
-const TABS: { name: string; repFirstName: string; gid?: string }[] = [
+const DEFAULT_TABS: { name: string; repFirstName: string; gid?: string }[] = [
   { name: "Dawid (dark blue)", repFirstName: "Dawid" },
   { name: "James (red)",       repFirstName: "James" },
   { name: "Downsells",         repFirstName: "Downsells", gid: "27092439" },
 ];
+
+// TRACKING_SHEET_TABS env var format: "Tab Name:RepFirstName,Tab Name:RepFirstName"
+// e.g. "Katrina (dark blue):Katrina,Carli (red):Carli"
+// Falls back to DEFAULT_TABS if not set.
+function getTrackingTabs(): { name: string; repFirstName: string; gid?: string }[] {
+  const env = process.env.TRACKING_SHEET_TABS;
+  if (!env) return DEFAULT_TABS;
+  return env.split(",").map((entry) => {
+    const colonIdx = entry.lastIndexOf(":");
+    if (colonIdx === -1) return { name: entry.trim(), repFirstName: entry.trim() };
+    return { name: entry.slice(0, colonIdx).trim(), repFirstName: entry.slice(colonIdx + 1).trim() };
+  });
+}
 
 const MONTH_MAP: Record<string, number> = {
   january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
@@ -103,7 +116,7 @@ export async function POST(_request: Request) {
     let totalUpserted = 0;
     const tabResults: Record<string, unknown> = {};
 
-    for (const tab of TABS) {
+    for (const tab of getTrackingTabs()) {
       const { name: tabName, repFirstName, gid } = tab;
       const repId = findRepId(repFirstName);
 
