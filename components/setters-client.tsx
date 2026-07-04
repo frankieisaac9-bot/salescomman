@@ -10,8 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi-card";
 import type { SetterStat } from "@/lib/types";
 
-const SETTERS = ["Both", "Indy", "Maj"] as const;
-type SetterFilter = (typeof SETTERS)[number];
+const BAR_COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#a855f7", "#ef4444", "#06b6d4"];
 
 const RANGES = ["MTD", "30d", "All"] as const;
 type RangeFilter = (typeof RANGES)[number];
@@ -68,13 +67,18 @@ function sumStats(rows: SetterStat[]) {
 }
 
 export function SettersClient({ stats }: { stats: SetterStat[] }) {
-  const [setter, setSetter] = useState<SetterFilter>("Both");
+  const allSetterNames = useMemo(() => {
+    const names = Array.from(new Set(stats.map((s) => s.setter_name))).filter(Boolean).sort();
+    return names as string[];
+  }, [stats]);
+
+  const [setter, setSetter] = useState<string>("All");
   const [range, setRange] = useState<RangeFilter>("MTD");
 
   const filtered = useMemo(() => {
     const since = getRangeSince(range);
     return stats.filter((s) => {
-      if (setter !== "Both" && s.setter_name !== setter) return false;
+      if (setter !== "All" && s.setter_name !== setter) return false;
       if (since && s.date < since) return false;
       return true;
     });
@@ -84,16 +88,15 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
   const bookRate = totals.calls_pitched > 0 ? (totals.booked_calls / totals.calls_pitched) * 100 : 0;
   const showRate = totals.calls_on_calendar > 0 ? (totals.calls_shown / totals.calls_on_calendar) * 100 : 0;
 
-  // Daily chart data — aggregate by date across setters if "Both"
+  // Daily chart data — per-setter booked keys are derived from actual data
   const chartData = useMemo(() => {
-    const byDate = new Map<string, { booked: number; shown: number; cash: number; indy_booked: number; maj_booked: number }>();
+    const byDate = new Map<string, Record<string, number>>();
     filtered.forEach((s) => {
-      const existing = byDate.get(s.date) ?? { booked: 0, shown: 0, cash: 0, indy_booked: 0, maj_booked: 0 };
+      const existing = byDate.get(s.date) ?? { booked: 0, shown: 0, cash: 0 };
       existing.booked += s.booked_calls;
       existing.shown += s.calls_shown;
       existing.cash += Number(s.cash_collected);
-      if (s.setter_name === "Indy") existing.indy_booked += s.booked_calls;
-      if (s.setter_name === "Maj") existing.maj_booked += s.booked_calls;
+      existing[s.setter_name] = (existing[s.setter_name] ?? 0) + s.booked_calls;
       byDate.set(s.date, existing);
     });
     return Array.from(byDate.entries())
@@ -103,20 +106,13 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
         "Booked": v.booked,
         "Shown": v.shown,
         "Cash": v.cash,
-        "Indy": v.indy_booked,
-        "Maj": v.maj_booked
+        ...Object.fromEntries(allSetterNames.map((n) => [n, v[n] ?? 0]))
       }));
-  }, [filtered]);
-
-  // Comparison table data — one row per setter per selected range
-  const setterNames = useMemo(() => {
-    const names = new Set(stats.map((s) => s.setter_name));
-    return Array.from(names).sort();
-  }, [stats]);
+  }, [filtered, allSetterNames]);
 
   const comparisonRows = useMemo(() => {
     const since = getRangeSince(range);
-    return setterNames.map((name) => {
+    return allSetterNames.map((name) => {
       const rows = stats.filter((s) => s.setter_name === name && (!since || s.date >= since));
       const t = sumStats(rows);
       return {
@@ -126,7 +122,7 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
         showRate: t.calls_on_calendar > 0 ? (t.calls_shown / t.calls_on_calendar) * 100 : 0
       };
     });
-  }, [stats, setterNames, range]);
+  }, [stats, allSetterNames, range]);
 
   const rangeLabel = range === "MTD"
     ? new Date().toLocaleString("default", { month: "long" }) + " to date"
@@ -137,7 +133,7 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-lg border border-white/10 bg-white/[0.03] p-1 gap-1">
-          {SETTERS.map((s) => (
+          {["All", ...allSetterNames].map((s) => (
             <button
               key={s}
               onClick={() => setSetter(s)}
@@ -187,12 +183,12 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
         <Card>
           <CardHeader>
             <CardTitle>
-              {setter === "Both" ? "Booked Calls by Setter" : `${setter} — Booked vs Shown`}
+              {setter === "All" ? "Booked Calls by Setter" : `${setter} — Booked vs Shown`}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
-              {setter === "Both" ? (
+              {setter === "All" ? (
                 <BarChart data={chartData} barSize={14}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#94a3b8" }} />
@@ -203,8 +199,9 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
                     itemStyle={{ color: "#94a3b8" }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12, color: "#94a3b8" }} />
-                  <Bar dataKey="Indy" fill="#3b82f6" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="Maj" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+                  {allSetterNames.map((name, i) => (
+                    <Bar key={name} dataKey={name} fill={BAR_COLORS[i % BAR_COLORS.length]} radius={[3, 3, 0, 0]} />
+                  ))}
                 </BarChart>
               ) : (
                 <BarChart data={chartData} barSize={14}>
@@ -292,7 +289,7 @@ export function SettersClient({ stats }: { stats: SetterStat[] }) {
       </Card>
 
       {/* Side-by-side comparison table */}
-      {setter === "Both" && (
+      {setter === "All" && (
         <Card>
           <CardHeader><CardTitle>Head-to-Head Comparison</CardTitle></CardHeader>
           <CardContent>
