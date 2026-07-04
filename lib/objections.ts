@@ -32,12 +32,15 @@ export function isOvercome(leadStatus: string | null): boolean {
 }
 
 // Jan..Dec of the current year plus "All" — used by month filter button rows.
+// Fixed labels (not toLocaleString) — server and browser locales can disagree
+// ("Sep" vs "Sept"), which causes React hydration mismatches.
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 export function buildMonthOptions(): { value: string; label: string }[] {
   const year = new Date().getFullYear();
-  const months = Array.from({ length: 12 }, (_, i) => {
-    const value = `${year}-${String(i + 1).padStart(2, "0")}`;
-    const label = new Date(year, i, 1).toLocaleString("default", { month: "short" });
-    return { value, label };
-  });
+  const months = MONTH_LABELS.map((label, i) => ({
+    value: `${year}-${String(i + 1).padStart(2, "0")}`,
+    label,
+  }));
   return [...months, { value: "all", label: "All" }];
 }
