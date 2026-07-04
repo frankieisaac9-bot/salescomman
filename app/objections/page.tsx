@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCloserCalls } from "@/lib/data";
+import { buildMonthOptions, isOvercome, mapObstacle, OBJ_LABELS, type ObjType } from "@/lib/objections";
 
 export const dynamic = "force-dynamic";
 
@@ -28,47 +29,10 @@ const RANK_BADGE_COLORS = [
   "bg-orange-400/20 text-orange-300",
 ];
 
-type ObjType = "money_logistics" | "money_fear" | "partner" | "think_about_it" | "fear_of_failure" | "na";
-
-const OBJ_LABELS: Record<ObjType, string> = {
-  money_logistics: "Money Logistics",
-  money_fear: "Money Fear",
-  partner: "Partner",
-  think_about_it: "Think About It",
-  fear_of_failure: "Fear of Failure",
-  na: "N/A",
-};
-
-function mapObstacle(raw: string): ObjType | null {
-  const v = raw.toLowerCase().trim();
-  if (v.includes("money") && v.includes("log")) return "money_logistics";
-  if (v.includes("money") && (v.includes("fear") || v.includes("scare"))) return "money_fear";
-  if (v.includes("money") || v.includes("logistics") || v.includes("financial") || v.includes("price") || v.includes("cost")) return "money_logistics";
-  if (v.includes("partner")) return "partner";
-  if (v.includes("fear") && v.includes("fail")) return "fear_of_failure";
-  if (v.includes("fear")) return "fear_of_failure";
-  if (v.includes("think")) return "think_about_it";
-  if (v === "n/a" || v === "na") return "na";
-  return null;
-}
-
-function isOvercome(leadStatus: string | null): boolean {
-  const s = (leadStatus ?? "").toLowerCase();
-  return s.includes("closed") || s.includes("deposit") || s.includes("won");
-}
-
 const now = new Date();
 const CURRENT_MONTH = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-const MONTHS = [
-  { value: "2026-01", label: "Jan" }, { value: "2026-02", label: "Feb" },
-  { value: "2026-03", label: "Mar" }, { value: "2026-04", label: "Apr" },
-  { value: "2026-05", label: "May" }, { value: "2026-06", label: "Jun" },
-  { value: "2026-07", label: "Jul" }, { value: "2026-08", label: "Aug" },
-  { value: "2026-09", label: "Sep" }, { value: "2026-10", label: "Oct" },
-  { value: "2026-11", label: "Nov" }, { value: "2026-12", label: "Dec" },
-  { value: "all", label: "All" },
-];
+const MONTHS = buildMonthOptions();
 
 export default async function ObjectionsPage({
   searchParams,

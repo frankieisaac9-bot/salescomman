@@ -74,15 +74,21 @@ export function cashByDay(stats: DailyStat[]) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function repBarData(stats: DailyStat[], reps: Rep[]) {
-  return reps.map((rep) => {
-    const repStats = stats.filter((s) => s.rep_id === rep.id);
-    return {
-      name: rep.name,
-      booked: repStats.reduce((s, r) => s + r.booked, 0),
-      closed: repStats.reduce((s, r) => s + r.closed, 0)
-    };
-  });
+// Group by rep_name from the tracking sheet — works even when the reps table
+// is empty or rep_id is null. "Downsells" is a revenue tab, not a rep.
+export function repBarData(stats: DailyStat[]) {
+  const byName = new Map<string, { booked: number; closed: number }>();
+  for (const s of stats) {
+    const name = s.rep_name?.trim();
+    if (!name || name === "Downsells") continue;
+    const e = byName.get(name) ?? { booked: 0, closed: 0 };
+    e.booked += s.booked;
+    e.closed += s.closed;
+    byName.set(name, e);
+  }
+  return Array.from(byName.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, v]) => ({ name, ...v }));
 }
 
 export function countBy(items: string[]) {

@@ -5,8 +5,9 @@ import { PageHeader } from "@/components/page-header";
 import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDailyStats, getDashboardData } from "@/lib/data";
+import { getCloserCalls, getDailyStats } from "@/lib/data";
 import { calculateMetricsFromDailyStats } from "@/lib/metrics";
+import { isOvercome, mapObstacle, OBJ_LABELS } from "@/lib/objections";
 import { currency, percent } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -17,21 +18,35 @@ export default async function DashboardPage() {
   const monthName = now.toLocaleString("default", { month: "long" });
   const mtdLabel = `${monthName} to date`;
 
-  const [{ stats: mtdStats }, { stats: allStats, reps }, { calls, objections }] = await Promise.all([
+  const [{ stats: mtdStats }, { stats: allStats }, { calls: closerCalls }] = await Promise.all([
     getDailyStats(mtdSince),
     getDailyStats(),
-    getDashboardData(90)
+    getCloserCalls()
   ]);
 
   const metrics = calculateMetricsFromDailyStats(mtdStats);
-  const recent = [...calls].sort((a, b) => b.call_date.localeCompare(a.call_date)).slice(0, 8);
+
+  // Objection breakdown from post-call form obstacles — same mapping as the Objections page
+  const objectionCounts = new Map<string, number>();
+  for (const call of closerCalls) {
+    const type = mapObstacle(call.obstacles ?? "");
+    if (!type || type === "na") continue;
+    const label = OBJ_LABELS[type];
+    objectionCounts.set(label, (objectionCounts.get(label) ?? 0) + 1);
+  }
+  const objectionData = Array.from(objectionCounts.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  // Live feed — most recent post-call form submissions
+  const recent = [...closerCalls].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
 
   return (
     <>
       <RealtimeRefresh />
       <PageHeader
         title="SalesCommand"
-        description="Live Close.com synced command center for booked calls, closes, cash collection, objections, and rep performance."
+        description="Command center synced from the tracking sheets — booked calls, closes, cash collection, objections, and rep performance."
       />
       <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <KpiCard label="Calls Booked" value={String(metrics.callsBooked)} icon={PhoneCall} detail={mtdLabel} />
@@ -40,26 +55,30 @@ export default async function DashboardPage() {
         <KpiCard label="Cash Collected" value={currency(metrics.cashCollected)} icon={DollarSign} tone="gold" detail={mtdLabel} />
         <KpiCard label="Revenue" value={currency(metrics.revenueGenerated)} icon={TrendingUp} tone="blue" detail={mtdLabel} />
       </div>
-      <DashboardCharts dailyStats={allStats} reps={reps} objections={objections} />
-      <Card className="mt-5">
-        <CardHeader>
-          <CardTitle>Live Call Feed</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {recent.map((call) => (
-            <div key={call.id} className="flex flex-col gap-2 rounded-md border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="font-medium">{call.reps?.name ?? "Unassigned rep"}</div>
-                <div className="text-sm text-muted-foreground">{call.product_offered ?? "No product"} · {new Date(call.call_date).toLocaleDateString()}</div>
+      <DashboardCharts dailyStats={allStats} objectionData={objectionData} />
+      {recent.length > 0 && (
+        <Card className="mt-5">
+          <CardHeader>
+            <CardTitle>Live Call Feed</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recent.map((call) => (
+              <div key={call.id} className="flex flex-col gap-2 rounded-md border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="font-medium">{call.rep_name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {call.lead_email ?? "No email"} · {new Date(call.date + "T00:00:00").toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={isOvercome(call.lead_status) ? "gold" : "default"}>{call.lead_status ?? "—"}</Badge>
+                  <span className="text-sm font-semibold">{currency(Number(call.cash_collected))}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Badge variant={call.status === "closed" ? "gold" : "default"}>{call.status.replace("_", " ")}</Badge>
-                <span className="text-sm font-semibold">{currency(call.revenue_generated)}</span>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }

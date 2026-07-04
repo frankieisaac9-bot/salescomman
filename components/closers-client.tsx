@@ -6,20 +6,13 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi-card";
 import type { CloserCall, DailyStat } from "@/lib/types";
+import { buildMonthOptions } from "@/lib/objections";
 
-const MONTHS = [
-  { value: "2026-01", label: "Jan" }, { value: "2026-02", label: "Feb" },
-  { value: "2026-03", label: "Mar" }, { value: "2026-04", label: "Apr" },
-  { value: "2026-05", label: "May" }, { value: "2026-06", label: "Jun" },
-  { value: "2026-07", label: "Jul" }, { value: "2026-08", label: "Aug" },
-  { value: "2026-09", label: "Sep" }, { value: "2026-10", label: "Oct" },
-  { value: "2026-11", label: "Nov" }, { value: "2026-12", label: "Dec" },
-  { value: "all", label: "All" },
-];
+const MONTHS = buildMonthOptions();
 const now = new Date();
 const CURRENT_MONTH = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-const REP_COLORS: Record<string, string> = { Dawid: "#3b82f6", James: "#ef4444" };
+const REP_PALETTE = ["#3b82f6", "#ef4444", "#f59e0b", "#10b981", "#a855f7", "#06b6d4", "#ec4899", "#84cc16"];
 
 function fmt(n: number) { return n.toLocaleString("en-US", { maximumFractionDigits: 0 }); }
 function currency(n: number) { return "$" + fmt(n); }
@@ -58,6 +51,15 @@ export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: Da
     const names = Array.from(new Set(stats.map(s => s.rep_name).filter(n => Boolean(n) && n !== "Downsells"))) as string[];
     return ["All", ...names.sort()];
   }, [stats]);
+
+  // Stable color per rep, assigned by sorted position
+  const repColors = useMemo(() => {
+    const map: Record<string, string> = {};
+    repNames.filter(r => r !== "All").forEach((name, i) => {
+      map[name] = REP_PALETTE[i % REP_PALETTE.length];
+    });
+    return map;
+  }, [repNames]);
 
   const [rep, setRep] = useState<string>("All");
   const [month, setMonth] = useState<string>(CURRENT_MONTH);
@@ -209,7 +211,7 @@ export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: Da
                   <Tooltip contentStyle={{ background: "#0f1117", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} labelStyle={{ color: "#e2e8f0" }} itemStyle={{ color: "#94a3b8" }} />
                   <Legend wrapperStyle={{ fontSize: 12, color: "#94a3b8" }} />
                   {repNames.filter(r => r !== "All").map(r => (
-                    <Bar key={r} dataKey={r} fill={REP_COLORS[r] ?? "#8b5cf6"} radius={[3, 3, 0, 0]} stackId="a" />
+                    <Bar key={r} dataKey={r} fill={repColors[r]} radius={[3, 3, 0, 0]} stackId="a" />
                   ))}
                 </BarChart>
               ) : (
@@ -274,7 +276,7 @@ export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: Da
                 <tbody>
                   {repRows.map(r => (
                     <tr key={r.name} className="border-b border-white/5 hover:bg-white/[0.02]">
-                      <td className="py-3 pr-4 font-semibold" style={{ color: REP_COLORS[r.name] }}>{r.name}</td>
+                      <td className="py-3 pr-4 font-semibold" style={{ color: repColors[r.name] }}>{r.name}</td>
                       <td className="py-3 pr-4 text-right">{fmt(r.booked)}</td>
                       <td className="py-3 pr-4 text-right">{fmt(r.showed)}</td>
                       <td className="py-3 pr-4 text-right text-blue-300">{pct(r.showRate)}</td>
@@ -333,7 +335,7 @@ export function ClosersClient({ calls, stats }: { calls: CloserCall[]; stats: Da
                 {logRows.map(c => (
                   <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.02] align-top">
                     <td className="py-2.5 pr-3 whitespace-nowrap text-slate-300">{shortDate(c.date)}</td>
-                    <td className="py-2.5 pr-3 font-medium whitespace-nowrap" style={{ color: REP_COLORS[c.rep_name] ?? undefined }}>{c.rep_name}</td>
+                    <td className="py-2.5 pr-3 font-medium whitespace-nowrap" style={{ color: repColors[c.rep_name] ?? undefined }}>{c.rep_name}</td>
                     <td className="py-2.5 pr-3 text-slate-400 max-w-[140px] truncate">{c.lead_email ?? "—"}</td>
                     <td className="py-2.5 pr-3 text-slate-400 whitespace-nowrap">{c.setter || "—"}</td>
                     <td className="py-2.5 pr-3">

@@ -16,15 +16,15 @@ import {
   YAxis
 } from "recharts";
 import { subDays } from "date-fns";
-import type { DailyStat, Objection, Rep } from "@/lib/types";
-import { cashByDay, countBy, repBarData } from "@/lib/metrics";
+import type { DailyStat } from "@/lib/types";
+import { cashByDay, repBarData } from "@/lib/metrics";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { currency } from "@/lib/utils";
 
 const colors = ["#3b82f6", "#f59e0b", "#ef4444", "#10b981", "#a78bfa"];
 
-export function DashboardCharts({ dailyStats, reps, objections }: { dailyStats: DailyStat[]; reps: Rep[]; objections: Objection[] }) {
+export function DashboardCharts({ dailyStats, objectionData }: { dailyStats: DailyStat[]; objectionData: { name: string; value: number }[] }) {
   const [range, setRange] = useState(30);
   const filteredStats = useMemo(() => {
     const since = subDays(new Date(), range).toISOString().slice(0, 10);
@@ -32,17 +32,13 @@ export function DashboardCharts({ dailyStats, reps, objections }: { dailyStats: 
   }, [dailyStats, range]);
 
   const revenue = cashByDay(filteredStats);
-  const repBars = repBarData(filteredStats, reps);
-  const objectionData = Object.entries(countBy(objections.map((objection) => objection.type))).map(([name, value]) => ({
-    name: name.replaceAll("_", " "),
-    value
-  }));
+  const repBars = repBarData(filteredStats);
 
   return (
     <div className="grid gap-5 xl:grid-cols-5">
       <Card className="xl:col-span-3">
         <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle>Revenue Over Time</CardTitle>
+          <CardTitle>Cash Collected Over Time</CardTitle>
           <div className="flex gap-2">
             {[30, 60, 90].map((days) => (
               <Button key={days} size="sm" variant={range === days ? "default" : "outline"} onClick={() => setRange(days)}>
