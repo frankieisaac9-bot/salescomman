@@ -130,7 +130,7 @@ create table if not exists public.setter_stats (
 
 create table if not exists public.closer_calls (
   id                 uuid primary key default uuid_generate_v4(),
-  form_timestamp     timestamptz,
+  form_timestamp     timestamptz unique,
   rep_name           text not null,
   date               date,
   lead_email         text,

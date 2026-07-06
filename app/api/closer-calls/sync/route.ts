@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_POST_CALL_ID;
-const TAB = "postcallformresponses";
+// Tab selection: GID takes priority (works regardless of tab name), then tab name env,
+// then the original Superhuman tab name.
+const TAB_GID = process.env.GOOGLE_SHEETS_POST_CALL_GID;
+const TAB_NAME = process.env.GOOGLE_SHEETS_POST_CALL_TAB || "postcallformresponses";
 
 function parseDate(raw: string): string | null {
   if (!raw?.trim()) return null;
@@ -33,7 +36,8 @@ function parseBool(v: unknown): boolean {
 }
 
 async function fetchSheet(): Promise<string[][]> {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(TAB)}&t=${Date.now()}`;
+  const param = TAB_GID ? `gid=${TAB_GID}` : `sheet=${encodeURIComponent(TAB_NAME)}`;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&${param}&t=${Date.now()}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
   return parseCsv(await res.text());
@@ -58,6 +62,30 @@ function parseCsv(csv: string): string[][] {
   return rows;
 }
 
+// Resolve column indices from header text so the same code works across clients
+// whose form questions differ in wording and order.
+function resolveColumns(headers: string[]) {
+  const h = headers.map((x) => x.toLowerCase().trim());
+  const find = (pred: (v: string) => boolean) => h.findIndex(pred);
+  return {
+    timestamp: find((v) => v.startsWith("timestamp")),
+    date: find((v) => v === "date"),
+    rep: find((v) => v.includes("rep name") || v.includes("sales rep")),
+    email: find((v) => v.includes("email")),
+    setter: find((v) => v.includes("setter")),
+    problem: find((v) => v.startsWith("problem")),
+    goal: find((v) => v.startsWith("goal")),
+    obstacles: find((v) => v.startsWith("obstacle")),
+    job: find((v) => v.includes("job") || v.includes("occupation")),
+    notes: find((v) => v.includes("notes")),
+    offer: find((v) => v.includes("offer")),
+    status: find((v) => v.includes("status")),
+    recording: find((v) => v.includes("recording")),
+    cash: find((v) => v.includes("cash")),
+    revenue: find((v) => v.includes("revenue")),
+  };
+}
+
 export async function POST(_request: Request) {
   if (!SHEET_ID) return NextResponse.json({ error: "Missing GOOGLE_SHEETS_POST_CALL_ID" }, { status: 500 });
 
@@ -65,36 +93,37 @@ export async function POST(_request: Request) {
     const rows = await fetchSheet();
     if (rows.length < 2) return NextResponse.json({ ok: true, rows_upserted: 0 });
 
-    // Col indices: 0=timestamp, 1=date, 2=rep, 3=email, 4=setter,
-    // 5=problem, 6=goal, 7=obstacles, 8=job, 9=notes,
-    // 10=offer_made, 11=lead_status, 12=recording, 13=cash, 14=revenue
-    const dataRows = rows.slice(1);
+    const col = resolveColumns(rows[0]);
+    if (col.timestamp === -1 || col.rep === -1) {
+      throw new Error(`Could not resolve required columns from headers: ${JSON.stringify(rows[0].slice(0, 6))}`);
+    }
+    const get = (row: string[], idx: number) => (idx === -1 ? "" : (row[idx] ?? "")).trim();
 
-    const payloads = dataRows
+    const payloads = rows.slice(1)
       .map((row) => {
-        const timestamp = (row[0] ?? "").trim();
+        const timestamp = get(row, col.timestamp);
         if (!timestamp) return null;
-        const repName = (row[2] ?? "").trim();
+        const repName = get(row, col.rep);
         if (!repName) return null;
-        const dateStr = parseDate(row[1] ?? "") ?? parseDate(row[0] ?? "");
+        const dateStr = parseDate(get(row, col.date)) ?? parseDate(timestamp);
         if (!dateStr) return null;
 
         return {
           form_timestamp: timestamp,
           rep_name: repName,
           date: dateStr,
-          lead_email: (row[3] ?? "").trim() || null,
-          setter: (row[4] ?? "").trim() || null,
-          problem: (row[5] ?? "").trim() || null,
-          goal: (row[6] ?? "").trim() || null,
-          obstacles: (row[7] ?? "").trim() || null,
-          prospect_job: (row[8] ?? "").trim() || null,
-          notes: (row[9] ?? "").trim() || null,
-          offer_made: parseBool(row[10]),
-          lead_status: (row[11] ?? "").trim() || null,
-          call_recording_url: (row[12] ?? "").trim() || null,
-          cash_collected: parseNum(row[13]),
-          revenue: parseNum(row[14]),
+          lead_email: get(row, col.email) || null,
+          setter: get(row, col.setter) || null,
+          problem: get(row, col.problem) || null,
+          goal: get(row, col.goal) || null,
+          obstacles: get(row, col.obstacles) || null,
+          prospect_job: get(row, col.job) || null,
+          notes: get(row, col.notes) || null,
+          offer_made: parseBool(get(row, col.offer)),
+          lead_status: get(row, col.status) || null,
+          call_recording_url: get(row, col.recording) || null,
+          cash_collected: parseNum(get(row, col.cash)),
+          revenue: parseNum(get(row, col.revenue)),
         };
       })
       .filter(Boolean) as object[];
