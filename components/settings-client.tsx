@@ -186,31 +186,20 @@ export function SettingsClient() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Close.com Integration</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Data Sync</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-md border border-blue-400/20 bg-blue-400/5 p-3 text-sm text-blue-300">
-            API credentials are stored server-side as environment variables. Use your hosting dashboard to update them.
-          </div>
-          <div className="space-y-2">
-            <Label>CLOSE_API_KEY</Label>
-            <Input type="password" readOnly defaultValue="••••••••" className="opacity-60" />
-          </div>
-          <div className="space-y-2">
-            <Label>CLOSE_LOCATION_ID</Label>
-            <Input readOnly defaultValue="Set via env var" className="opacity-60" />
+            Pull the latest data from the Google Sheets. Sheet IDs are configured as environment variables in your hosting dashboard.
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => runSync("/api/close.com/sync", "Close.com sync")} disabled={loading}>
-              <RefreshCw className="h-4 w-4" /> Sync Close.com
+            <Button onClick={() => runSync("/api/tracking-sheet/sync", "Tracking sheet sync")} disabled={loading}>
+              <RefreshCw className="h-4 w-4" /> Sync Tracking Sheet
+            </Button>
+            <Button onClick={() => runSync("/api/setter-sheet/sync", "Setter sheet sync")} disabled={loading}>
+              <RefreshCw className="h-4 w-4" /> Sync Setter Sheet
             </Button>
             <Button variant="outline" onClick={() => runSync("/api/google-sheets/sync", "Google Sheets sync")} disabled={loading}>
               <RefreshCw className="h-4 w-4" /> Sync Post-Call Form
-            </Button>
-            <Button variant="outline" onClick={() => runSync("/api/tracking-sheet/sync", "Tracking sheet sync")} disabled={loading}>
-              <RefreshCw className="h-4 w-4" /> Sync Tracking Sheet
-            </Button>
-            <Button variant="outline" onClick={() => runSync("/api/setter-sheet/sync", "Setter sheet sync")} disabled={loading}>
-              <RefreshCw className="h-4 w-4" /> Sync Setter Sheet
             </Button>
             <Button variant="outline" onClick={() => runSync("/api/closer-calls/sync", "Closer calls sync")} disabled={loading}>
               <RefreshCw className="h-4 w-4" /> Sync Closer Calls

@@ -4,7 +4,7 @@ import { SettingsClient } from "@/components/settings-client";
 export default function SettingsPage() {
   return (
     <>
-      <PageHeader title="Settings" description="Admin controls for reps, Close.com credentials, products, follow-up thresholds, sync, and CSV exports." />
+      <PageHeader title="Settings" description="Admin controls for reps, products, follow-up thresholds, sheet syncs, and CSV exports." />
       <SettingsClient />
     </>
   );

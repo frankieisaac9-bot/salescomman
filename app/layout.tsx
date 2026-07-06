@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SalesCommand",
-  description: "Close.com synced sales performance command center"
+  description: "Sales performance command center"
 };
 
 export default function RootLayout({
