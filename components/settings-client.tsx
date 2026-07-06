@@ -18,7 +18,7 @@ async function apiFetch(path: string, options?: RequestInit) {
   return json;
 }
 
-export function SettingsClient() {
+export function SettingsClient({ closeEnabled = false }: { closeEnabled?: boolean }) {
   const [reps, setReps] = useState<Rep[]>([]);
   const [products, setProducts] = useState<string[]>([]);
   const [thresholds, setThresholds] = useState({ day3: 3, day7: 7, day10: 10, day14: 14 });
@@ -204,6 +204,11 @@ export function SettingsClient() {
             <Button variant="outline" onClick={() => runSync("/api/closer-calls/sync", "Closer calls sync")} disabled={loading}>
               <RefreshCw className="h-4 w-4" /> Sync Closer Calls
             </Button>
+            {closeEnabled && (
+              <Button variant="outline" onClick={() => runSync("/api/close.com/sync", "Close.com sync")} disabled={loading}>
+                <RefreshCw className="h-4 w-4" /> Sync Close.com
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
