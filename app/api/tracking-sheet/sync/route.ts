@@ -115,6 +115,9 @@ export async function POST(_request: Request) {
 
     let totalUpserted = 0;
     const tabResults: Record<string, unknown> = {};
+    const allKeys = new Set<string>(); // "rep_name|date" of every row kept this sync
+    let anyFetchError = false;
+    let anyUpsertError = false;
 
     for (const tab of getTrackingTabs()) {
       const { name: tabName, repFirstName, gid } = tab;
@@ -127,6 +130,7 @@ export async function POST(_request: Request) {
         const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
         console.error(`[Tracking sync] Failed to fetch tab "${tabName}":`, msg);
         tabResults[tabName] = { error: msg, raw_rows: 0, upserted: 0 };
+        anyFetchError = true;
         continue;
       }
 
@@ -166,7 +170,11 @@ export async function POST(_request: Request) {
         if (error) {
           console.error(`[Tracking sync] Upsert error for tab "${tabName}":`, error.message);
           tabResults[tabName] = { error: error.message, raw_rows: rows.length, upserted: 0 };
+          anyUpsertError = true;
           continue;
+        }
+        for (const p of payloads as { rep_name: string; date: string }[]) {
+          allKeys.add(`${p.rep_name}|${p.date}`);
         }
         totalUpserted += payloads.length;
         tabResults[tabName] = { raw_rows: rows.length, upserted: payloads.length };
@@ -175,7 +183,22 @@ export async function POST(_request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, rows_upserted: totalUpserted, tabs: tabResults });
+    // Sheet is the source of truth: remove DB rows whose sheet rows were
+    // deleted or cleared. Skipped on any fetch/upsert error so a transient
+    // failure can't wipe a rep's history.
+    let staleDeleted = 0;
+    if (!anyFetchError && !anyUpsertError && totalUpserted > 0) {
+      const { data: dbRows } = await supabase.from("daily_stats").select("id,rep_name,date");
+      const staleIds = (dbRows ?? [])
+        .filter(r => !allKeys.has(`${r.rep_name}|${r.date}`))
+        .map(r => r.id);
+      if (staleIds.length) {
+        const { error: delError } = await supabase.from("daily_stats").delete().in("id", staleIds);
+        if (!delError) staleDeleted = staleIds.length;
+      }
+    }
+
+    return NextResponse.json({ ok: true, rows_upserted: totalUpserted, stale_deleted: staleDeleted, tabs: tabResults });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[Tracking sheet sync error]", message);

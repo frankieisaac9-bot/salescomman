@@ -137,7 +137,34 @@ export async function POST(_request: Request) {
 
     if (error) throw new Error(error.message);
 
-    return NextResponse.json({ ok: true, rows_upserted: payloads.length });
+    // Sheet is the source of truth: remove DB rows whose form rows were
+    // deleted from the sheet. Compared as raw date+time digits (not Date
+    // parsing) so the result is identical regardless of server timezone —
+    // the DB returns ISO strings while the sheet uses M/D/YYYY HH:mm:ss.
+    const tsKey = (raw: string): string => {
+      const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+      if (iso) return iso.slice(1).join("");
+      const us = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+      if (us) {
+        return us[3] + us[1].padStart(2, "0") + us[2].padStart(2, "0") +
+          us[4].padStart(2, "0") + us[5] + us[6];
+      }
+      return raw;
+    };
+    let staleDeleted = 0;
+    const sheetTimes = new Set(
+      (payloads as { form_timestamp: string }[]).map(p => tsKey(p.form_timestamp))
+    );
+    const { data: dbRows } = await supabase.from("closer_calls").select("id,form_timestamp");
+    const staleIds = (dbRows ?? [])
+      .filter(r => !sheetTimes.has(tsKey(String(r.form_timestamp))))
+      .map(r => r.id);
+    if (staleIds.length) {
+      const { error: delError } = await supabase.from("closer_calls").delete().in("id", staleIds);
+      if (!delError) staleDeleted = staleIds.length;
+    }
+
+    return NextResponse.json({ ok: true, rows_upserted: payloads.length, stale_deleted: staleDeleted });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[Closer calls sync error]", message);

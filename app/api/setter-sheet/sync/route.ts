@@ -114,8 +114,9 @@ export async function POST(_request: Request) {
   try {
     const supabase = createSupabaseAdminClient();
     const tabs = getSetterTabs();
-    const allPayloads: object[] = [];
+    const allPayloads: Record<string, unknown>[] = [];
     const tabResults: Record<string, unknown> = {};
+    let anyFetchError = false;
 
     for (const tab of tabs) {
       let rows: Record<string, unknown>[] = [];
@@ -125,6 +126,7 @@ export async function POST(_request: Request) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[Setter sync] Failed to fetch tab "${tab}":`, msg);
         tabResults[tab] = { error: msg };
+        anyFetchError = true;
         continue;
       }
 
@@ -133,7 +135,7 @@ export async function POST(_request: Request) {
         console.log(`[Setter sync] Tab "${tab}" headers:`, headers);
       }
 
-      const payloads = buildSetterPayloads(rows);
+      const payloads = buildSetterPayloads(rows) as Record<string, unknown>[];
       allPayloads.push(...payloads);
       tabResults[tab] = { raw_rows: rows.length, upserted: payloads.length };
     }
@@ -148,7 +150,23 @@ export async function POST(_request: Request) {
 
     if (error) throw new Error(error.message);
 
-    return NextResponse.json({ ok: true, rows_upserted: allPayloads.length, tabs: tabResults });
+    // Sheet is the source of truth: remove DB rows whose sheet rows were
+    // deleted or cleared. Skipped if any tab failed to fetch, so a transient
+    // Google error can't wipe a setter's history.
+    let staleDeleted = 0;
+    if (!anyFetchError) {
+      const keys = new Set(allPayloads.map(p => `${p.setter_name}|${p.date}`));
+      const { data: dbRows } = await supabase.from("setter_stats").select("id,setter_name,date");
+      const staleIds = (dbRows ?? [])
+        .filter(r => !keys.has(`${r.setter_name}|${r.date}`))
+        .map(r => r.id);
+      if (staleIds.length) {
+        const { error: delError } = await supabase.from("setter_stats").delete().in("id", staleIds);
+        if (!delError) staleDeleted = staleIds.length;
+      }
+    }
+
+    return NextResponse.json({ ok: true, rows_upserted: allPayloads.length, stale_deleted: staleDeleted, tabs: tabResults });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[Setter sheet sync error]", message);
