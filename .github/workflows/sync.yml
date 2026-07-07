@@ -1,0 +1,25 @@
+name: Sync dashboards from Google Sheets
+
+on:
+  schedule:
+    # Every 15 minutes (GitHub may delay runs by a few minutes under load)
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        deployment:
+          - name: superhuman
+            url: https://salescomman.vercel.app
+          - name: slicesquad
+            url: https://salescomman-o7ps.vercel.app
+    steps:
+      - name: Sync ${{ matrix.deployment.name }}
+        run: |
+          response=$(curl -s --max-time 120 "${{ matrix.deployment.url }}/api/sync-all")
+          echo "$response"
+          echo "$response" | grep -q '"ok":true' || { echo "Sync failed"; exit 1; }
