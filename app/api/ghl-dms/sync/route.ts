@@ -38,7 +38,6 @@ export async function POST() {
       },
       "2021-04-15"
     );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const all = (data.conversations as any[]) ?? [];
     const recent = all.filter((c) => Number(c.lastMessageDate ?? 0) >= cutoff);
     if (recent.length === 0) break;
@@ -61,10 +60,8 @@ export async function POST() {
               { limit: MESSAGES_PER_CONVERSATION },
               "2021-04-15"
             );
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const box = (res.messages ?? res) as any;
             const page = Array.isArray(box) ? box : box.messages ?? [];
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return page.map((m: any) => ghlMessageRow(m, c.id));
           } catch (err) {
             console.warn(`ghl-dms sync: messages failed for ${c.id}:`, err);

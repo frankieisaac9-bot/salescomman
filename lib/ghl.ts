@@ -42,7 +42,6 @@ function toIso(value: unknown): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ghlConversationRow(c: any) {
   const raw = { ...c };
   delete raw.profilePhoto;
@@ -65,7 +64,6 @@ export function ghlConversationRow(c: any) {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ghlMessageRow(m: any, conversationId: string) {
   return {
     id: m.id as string,
