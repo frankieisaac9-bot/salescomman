@@ -82,6 +82,15 @@ export async function POST(request: Request) {
   const now = Date.now();
   const lookbackIso = new Date(now - LOOKBACK_HOURS * 3_600_000).toISOString();
 
+  // GHL user ids whose assigned conversations never alert. Managed via the
+  // app_settings row 'dm_alerts_muted_assignees' (jsonb array of user ids).
+  const { data: mutedSetting } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "dm_alerts_muted_assignees")
+    .maybeSingle();
+  const muted = new Set<string>(Array.isArray(mutedSetting?.value) ? mutedSetting.value : []);
+
   // Candidates: conversations whose most recent message came from the lead.
   const { data: candidates, error: candError } = await supabase
     .from("dm_conversations")
@@ -96,6 +105,7 @@ export async function POST(request: Request) {
 
   const breaches: Breach[] = [];
   for (const conv of candidates ?? []) {
+    if (conv.assigned_to && muted.has(conv.assigned_to)) continue;
     const { data: msgs, error: msgError } = await supabase
       .from("dm_messages")
       .select("direction, date_added, body")
