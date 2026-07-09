@@ -9,6 +9,8 @@ const SYNC_PATHS = [
   "/api/tracking-sheet/sync",
   "/api/setter-sheet/sync",
   "/api/closer-calls/sync",
+  "/api/ghl-dms/sync",
+  "/api/dm-alerts/check",
 ];
 
 export async function GET(request: Request) {

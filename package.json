@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "export:ghl-dms": "node scripts/export-ghl-dms.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
