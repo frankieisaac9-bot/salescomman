@@ -41,7 +41,17 @@ function easternHour(): number {
 function formatWait(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
+  if (h >= 48) return `${Math.floor(h / 24)}d ${h % 24}h`;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// GHL logs emoji reactions as inbound messages ("Reacted ❤️ to “…”",
+// "Loved “…”"). They aren't a lead waiting on a reply, so they never start
+// the clock.
+function isReaction(body: string | null): boolean {
+  return /^(Reacted .{1,12} to|Loved|Liked|Disliked|Laughed at|Emphasized|Questioned) [“"]/.test(
+    body ?? ""
+  );
 }
 
 type Breach = {
@@ -98,7 +108,7 @@ export async function POST(request: Request) {
     let firstUnanswered: { date_added: string; body: string | null } | null = null;
     for (const m of msgs) {
       if (m.direction === "outbound") break;
-      if (m.direction === "inbound" && m.date_added) firstUnanswered = m;
+      if (m.direction === "inbound" && m.date_added && !isReaction(m.body)) firstUnanswered = m;
     }
     if (!firstUnanswered) continue;
 
