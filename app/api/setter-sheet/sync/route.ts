@@ -70,6 +70,14 @@ function parseCsv(csv: string): Record<string, unknown>[] {
 }
 
 function buildSetterPayloads(rows: Record<string, unknown>[]): object[] {
+  // Cash/revenue headers vary by client ("Cash Collected", "Cash Collected
+  // (no $, just #)", …) — resolve by keyword from the first row's keys.
+  // Named keys appear in header order, so the stats table's column wins over
+  // any later lookalike (e.g. "Cash Collected (USD)" in a side table).
+  const keys = rows[0] ? Object.keys(rows[0]).filter(k => !k.startsWith("__col")) : [];
+  const cashKey = keys.find(k => k.includes("cash")) ?? "cash collected";
+  const revenueKey = keys.find(k => k.startsWith("revenue")) ?? "revenue";
+
   return rows
     .map((row) => {
       const dateStr = parseSetterDate(String(row["date"] ?? ""));
@@ -91,10 +99,10 @@ function buildSetterPayloads(rows: Record<string, unknown>[]): object[] {
         cancelled: parseNum(row["cancelled"]),
         reschedules: parseNum(row["reschedules"]),
       };
-      const rawCash = String(row["cash collected"] ?? "").trim();
-      const rawRevenue = String(row["revenue"] ?? "").trim();
-      if (rawCash) payload.cash_collected = parseNum(row["cash collected"]);
-      if (rawRevenue) payload.revenue = parseNum(row["revenue"]);
+      const rawCash = String(row[cashKey] ?? "").trim();
+      const rawRevenue = String(row[revenueKey] ?? "").trim();
+      if (rawCash) payload.cash_collected = parseNum(rawCash);
+      if (rawRevenue) payload.revenue = parseNum(rawRevenue);
 
       const numFields = ["new_leads","dq","follow_ups","calls_pitched","booked_calls",
         "calls_on_calendar","calls_shown","no_shows","cancelled","reschedules","cash_collected","revenue"];
