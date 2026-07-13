@@ -85,6 +85,8 @@ function buildSetterPayloads(rows: Record<string, unknown>[]): object[] {
       const setterName = String(row["setter name"] ?? "").trim();
       if (!setterName) return null;
 
+      // Every payload carries the same keys — rows with mixed key sets make
+      // the upsert write NULL for the missing columns, violating not-null.
       const payload: Record<string, unknown> = {
         setter_name: setterName,
         date: dateStr,
@@ -98,11 +100,9 @@ function buildSetterPayloads(rows: Record<string, unknown>[]): object[] {
         no_shows: parseNum(row["no shows"]),
         cancelled: parseNum(row["cancelled"]),
         reschedules: parseNum(row["reschedules"]),
+        cash_collected: parseNum(row[cashKey]),
+        revenue: parseNum(row[revenueKey]),
       };
-      const rawCash = String(row[cashKey] ?? "").trim();
-      const rawRevenue = String(row[revenueKey] ?? "").trim();
-      if (rawCash) payload.cash_collected = parseNum(rawCash);
-      if (rawRevenue) payload.revenue = parseNum(rawRevenue);
 
       const numFields = ["new_leads","dq","follow_ups","calls_pitched","booked_calls",
         "calls_on_calendar","calls_shown","no_shows","cancelled","reschedules","cash_collected","revenue"];
