@@ -17,6 +17,8 @@ jobs:
             url: https://salescomman.vercel.app
           - name: slicesquad
             url: https://salescomman-o7ps.vercel.app
+          - name: wholesalemastery
+            url: https://salescommand-wholesalemastery.vercel.app
     steps:
       - name: Sync ${{ matrix.deployment.name }}
         run: |
