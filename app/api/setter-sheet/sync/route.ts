@@ -156,7 +156,7 @@ export async function POST(_request: Request) {
       .from("setter_stats")
       .upsert(allPayloads, { onConflict: "setter_name,date" });
 
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(error.message || `Upsert failed: ${JSON.stringify(error)}`);
 
     // Sheet is the source of truth: remove DB rows whose sheet rows were
     // deleted or cleared. Skipped if any tab failed to fetch, so a transient
@@ -176,7 +176,9 @@ export async function POST(_request: Request) {
 
     return NextResponse.json({ ok: true, rows_upserted: allPayloads.length, stale_deleted: staleDeleted, tabs: tabResults });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error && err.message
+      ? err.message
+      : `Unexpected error: ${JSON.stringify(err) ?? String(err)}`;
     console.error("[Setter sheet sync error]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
