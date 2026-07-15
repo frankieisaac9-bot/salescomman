@@ -17,8 +17,9 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings }
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, hiddenNav = [] }: { children: React.ReactNode; hiddenNav?: string[] }) {
   const pathname = usePathname();
+  const visibleNav = navItems.filter((item) => !hiddenNav.includes(item.href));
 
   return (
     <div className="min-h-screen">
@@ -33,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
         <nav className="space-y-1">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link
@@ -59,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="font-bold">SalesCommand</span>
         </div>
         <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
