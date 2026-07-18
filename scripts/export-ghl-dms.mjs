@@ -72,7 +72,9 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
 
 // ---------- rate limiter (GHL burst limit: 100 requests / 10s) ----------
 
-const MAX_RPS = 8;
+// GHL also enforces a daily quota (~200k requests/location/day); throttle via
+// GHL_EXPORT_RPS if a long run keeps dying on HTTP 429.
+const MAX_RPS = Number(process.env.GHL_EXPORT_RPS ?? 8);
 let tokens = MAX_RPS;
 setInterval(() => {
   tokens = Math.min(MAX_RPS, tokens + MAX_RPS);
@@ -224,8 +226,18 @@ function messageRow(m, conversationId) {
 async function upsert(table, rows) {
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
-    const { error } = await supabase.from(table).upsert(chunk, { onConflict: "id" });
-    if (error) throw new Error(`Supabase upsert into ${table} failed: ${error.message}`);
+    let lastError;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { error } = await supabase.from(table).upsert(chunk, { onConflict: "id" });
+      if (!error) {
+        lastError = null;
+        break;
+      }
+      // Transient network blips shouldn't kill an hours-long run.
+      lastError = error;
+      await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+    }
+    if (lastError) throw new Error(`Supabase upsert into ${table} failed: ${lastError.message}`);
   }
 }
 
