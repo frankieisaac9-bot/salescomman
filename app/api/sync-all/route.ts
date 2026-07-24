@@ -10,6 +10,7 @@ const SYNC_PATHS = [
   "/api/setter-sheet/sync",
   "/api/closer-calls/sync",
   "/api/ghl-dms/sync",
+  "/api/manychat/enrich",
   "/api/dm-alerts/check",
 ];
 

@@ -59,6 +59,8 @@ type Breach = {
   level: "setter_60m" | "team_3h";
   first_unanswered_at: string;
   assigned_to: string | null;
+  mc_assigned: string | null;
+  mc_chat_url: string | null;
   waiting_minutes: number;
   contact_name: string;
   snippet: string;
@@ -91,10 +93,22 @@ export async function POST(request: Request) {
     .maybeSingle();
   const muted = new Set<string>(Array.isArray(mutedSetting?.value) ? mutedSetting.value : []);
 
+  // Setter names + Slack ids. Loaded up front so both GHL user ids and
+  // ManyChat assignment text (first names like "Leah") resolve consistently.
+  const { data: users } = await supabase.from("dm_users").select("id, name, slack_user_id");
+  const userById = new Map((users ?? []).map((u) => [u.id, u]));
+  const userByFirstName = new Map(
+    (users ?? [])
+      .filter((u) => u.name)
+      .map((u) => [String(u.name).split(/\s+/)[0].toLowerCase(), u])
+  );
+  const resolveMcUser = (mcAssigned: string | null) =>
+    mcAssigned ? userByFirstName.get(mcAssigned.split(/\s+/)[0].toLowerCase()) : undefined;
+
   // Candidates: conversations whose most recent message came from the lead.
   const { data: candidates, error: candError } = await supabase
     .from("dm_conversations")
-    .select("id, contact_name, assigned_to, location_id, last_message_date")
+    .select("id, contact_name, assigned_to, mc_assigned, mc_chat_url, location_id, last_message_date")
     .eq("last_message_direction", "inbound")
     .gte("last_message_date", lookbackIso)
     .order("last_message_date", { ascending: true })
@@ -106,6 +120,8 @@ export async function POST(request: Request) {
   const breaches: Breach[] = [];
   for (const conv of candidates ?? []) {
     if (conv.assigned_to && muted.has(conv.assigned_to)) continue;
+    const mcUser = resolveMcUser(conv.mc_assigned ?? null);
+    if (!conv.assigned_to && mcUser && muted.has(mcUser.id)) continue;
     const { data: msgs, error: msgError } = await supabase
       .from("dm_messages")
       .select("direction, date_added, body")
@@ -131,6 +147,8 @@ export async function POST(request: Request) {
       level,
       first_unanswered_at: firstUnanswered.date_added,
       assigned_to: conv.assigned_to ?? null,
+      mc_assigned: conv.mc_assigned ?? null,
+      mc_chat_url: conv.mc_chat_url ?? null,
       waiting_minutes: Math.round(waitingMinutes),
       contact_name: conv.contact_name ?? "Unknown lead",
       snippet: (firstUnanswered.body ?? "").slice(0, 80),
@@ -168,24 +186,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, alerted: 0, alreadyNotified: breaches.length });
   }
 
-  // Setter names + Slack ids for mentions.
-  const setterIds = Array.from(
-    new Set(fresh.map((b) => b.assigned_to).filter((id): id is string => Boolean(id)))
-  );
-  const { data: users } = setterIds.length
-    ? await supabase.from("dm_users").select("id, name, slack_user_id").in("id", setterIds)
-    : { data: [] };
-  const userById = new Map((users ?? []).map((u) => [u.id, u]));
   const ownerPing = process.env.SLACK_OWNER_ID ? ` <@${process.env.SLACK_OWNER_ID}>` : "";
 
   function describe(b: Breach): string {
-    const user = b.assigned_to ? userById.get(b.assigned_to) : undefined;
+    const user = b.assigned_to ? userById.get(b.assigned_to) : resolveMcUser(b.mc_assigned);
     const setter = user?.slack_user_id
       ? `<@${user.slack_user_id}>`
-      : user?.name ?? "unassigned";
-    const link = b.conversation_id.startsWith("ig:")
-      ? ""
-      : ` — <https://app.slicetech.ai/v2/location/${process.env.GHL_LOCATION_ID}/conversations/conversations/${b.conversation_id}|open>`;
+      : user?.name ?? b.mc_assigned ?? "unassigned";
+    const link = b.mc_chat_url
+      ? ` — <${b.mc_chat_url}|open in ManyChat>`
+      : b.conversation_id.startsWith("ig:")
+        ? ""
+        : ` — <https://app.slicetech.ai/v2/location/${process.env.GHL_LOCATION_ID}/conversations/conversations/${b.conversation_id}|open>`;
     return `• *${b.contact_name}* waiting *${formatWait(b.waiting_minutes)}* (${setter})${
       b.snippet ? ` — “${b.snippet}”` : ""
     }${link}`;
